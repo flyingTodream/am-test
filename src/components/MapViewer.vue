@@ -44,7 +44,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 
-const emit = defineEmits(['map-ready', 'view-reset'])
+const emit = defineEmits(['map-ready', 'view-reset', 'point-clicked'])
 
 // Props
 const props = defineProps({
@@ -158,6 +158,17 @@ const getColorByValue = (value) => {
   return '#2563eb' // 蓝色预警 (1级) - 0.5m以下
 }
 
+// 处理圆点点击事件
+const handlePointClick = (pointData, coordinates, index) => {
+  // 发射点击事件到父组件，传递点数据、坐标和索引
+  emit('point-clicked', {
+    data: pointData,
+    coordinates: coordinates,
+    index: index,
+    color: getColorByValue(pointData?.value)
+  })
+}
+
 // 更新SHP圆点
 const updateShpCircles = (coordinates) => {
   if (!map) {
@@ -186,7 +197,13 @@ const updateShpCircles = (coordinates) => {
           strokeOpacity: 0,
           fillColor: color, // 使用根据value值计算的颜色
           fillOpacity: 1.0, // 完全不透明，实心效果
-          strokeStyle: 'solid'
+          strokeStyle: 'solid',
+          cursor: 'pointer' // 设置鼠标样式为小手
+        })
+
+        // 添加点击事件监听器
+        circle.on('click', () => {
+          handlePointClick(shpItem, [lng, lat], index)
         })
 
         map.add(circle)

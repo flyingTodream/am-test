@@ -66,7 +66,8 @@
             :shp-coordinates="shpCoordinates"
             :shp-data="shpJsonData"
             :map-stats="mapStats"
-            @map-ready="handleMapReady" />
+            @map-ready="handleMapReady"
+            @point-clicked="handlePointClicked" />
         </div>
 
         <!-- 实时统计区域 -->
@@ -207,6 +208,43 @@ const handleFileSelected = async (file) => {
 const handleMapReady = () => {
   console.log('地图已准备就绪')
   infoMessage.value = '地图加载完成，可以上传CSV文件'
+}
+
+// 处理圆点点击事件
+const handlePointClicked = (pointInfo) => {
+  console.log('点击了圆点:', pointInfo)
+
+  // 构建点击信息
+  const { data, coordinates, index, color } = pointInfo
+  let message = `点击了第 ${index + 1} 个检测点\n`
+  message += `坐标: [${coordinates[0].toFixed(6)}, ${coordinates[1].toFixed(6)}]\n`
+
+  if (data) {
+    // 如果有数据，显示相关信息
+    if (data.value !== null && data.value !== undefined) {
+      const value = parseFloat(data.value)
+      let level = ''
+
+      if (value >= 2.5) {
+        level = '黑色预警 (5级) - 2.5m以上'
+      } else if (value >= 1.5) {
+        level = '红色预警 (4级) - 1.5-2.5m'
+      } else if (value >= 1.0) {
+        level = '橙色预警 (3级) - 1.0-1.5m'
+      } else if (value >= 0.5) {
+        level = '黄色预警 (2级) - 0.5-1.0m'
+      } else {
+        level = '蓝色预警 (1级) - 0.5m以下'
+      }
+
+      message += `预警值: ${value}m - ${level}`
+    }
+  } else {
+    message += `预警值: 暂无数据`
+  }
+
+  // 显示点击信息
+  infoMessage.value = message
 }
 
 
