@@ -89,28 +89,85 @@
               </div>
 
               <div class="warning-stat-box black-warning">
-                <div class="stat-number">0</div>
+                <div class="stat-number">{{ mapStats?.warningCounts?.black || 0 }}</div>
                 <div class="stat-desc">黑色预警</div>
               </div>
 
               <div class="warning-stat-box red-warning">
-                <div class="stat-number">0</div>
+                <div class="stat-number">{{ mapStats?.warningCounts?.red || 0 }}</div>
                 <div class="stat-desc">红色预警</div>
               </div>
 
               <div class="warning-stat-box orange-warning">
-                <div class="stat-number">0</div>
+                <div class="stat-number">{{ mapStats?.warningCounts?.orange || 0 }}</div>
                 <div class="stat-desc">橙色预警</div>
               </div>
 
               <div class="warning-stat-box yellow-warning">
-                <div class="stat-number">0</div>
+                <div class="stat-number">{{ mapStats?.warningCounts?.yellow || 0 }}</div>
                 <div class="stat-desc">黄色预警</div>
               </div>
 
               <div class="warning-stat-box blue-warning">
-                <div class="stat-number">0</div>
+                <div class="stat-number">{{ mapStats?.warningCounts?.blue || 0 }}</div>
                 <div class="stat-desc">蓝色预警</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 站点详情卡片 -->
+          <div class="point-detail-section">
+            <div class="point-detail-panel">
+              <div class="point-detail-header">
+                <h4 class="point-detail-title">站点详情</h4>
+              </div>
+
+              <div class="point-detail-content">
+                <!-- 没有数据时显示暂无数据 -->
+                <div v-if="!selectedPoint" class="no-data-message">
+                  暂无数据
+                </div>
+
+                <!-- 有数据时显示详细信息 -->
+                <template v-else>
+                  <!-- 站点名称单独显示在顶部 -->
+                  <div class="station-name-display">
+                    <div class="warning-color-box" :class="getWarningLevelClass(selectedPoint.currentValue)"></div>
+                    <div class="station-name-text">{{ selectedPoint.name || '未知站点' }}</div>
+                  </div>
+
+                  <div class="detail-grid">
+                    <!-- 当前水位 -->
+                    <div class="detail-item current-water">
+                      <div class="detail-label">当前水位</div>
+                      <div class="detail-value">
+                        {{ selectedPoint.currentValue !== null ? selectedPoint.currentValue.toFixed(2) + 'm' : '暂无数据' }}
+                      </div>
+                    </div>
+
+                    <!-- 预警级别 -->
+                    <div class="detail-item warning-level-item" v-if="selectedPoint.currentValue !== null">
+                      <div class="detail-label">预警级别</div>
+                      <div class="warning-level-display" :class="getWarningLevelClass(selectedPoint.currentValue)">
+                        {{ getWarningLevelText(selectedPoint.currentValue) }}
+                      </div>
+                    </div>
+
+                    <!-- 峰值水位 -->
+                    <div class="detail-item peak-water" v-if="selectedPoint.peakValue !== null">
+                      <div class="detail-label">峰值水位</div>
+                      <div class="detail-value">
+                        {{ selectedPoint.peakValue.toFixed(2) + 'm' }}
+                      </div>
+                    </div>
+
+                    <!-- 峰值时间 -->
+                    <div class="detail-item peak-time" v-if="selectedPoint.peakTime">
+                      <div class="detail-label">峰值时间</div>
+                      <div class="detail-value">{{ selectedPoint.peakTime }}</div>
+                    </div>
+                  </div>
+                </template>
               </div>
             </div>
           </div>
@@ -141,6 +198,9 @@ const currentFile = ref(null)
 const mapStats = ref(null)
 const shpJsonData = ref([])
 const shpCoordinates = ref([])
+const uploadedCsvData = ref([]) // 存储上传的CSV数据
+const timeColumns = ref([]) // 存储时间列名称
+const selectedPoint = ref(null) // 当前选中的站点信息
 
 // 消息状态
 const errorMessage = ref('')
@@ -163,35 +223,85 @@ const handleFileSelected = async (file) => {
       infoMessage.value = '正在解析CSV文件...'
     }
 
-    // 解析CSV文件
-    await csvParser.parseCSVFile(file)
+    // 读取CSV文件内容
+    const text = await file.text()
+    const lines = text.split('\n').filter(line => line.trim())
 
-    // 清除处理中消息
-    if (!file.name.includes('kml.csv')) {
-      infoMessage.value = ''
+    if (lines.length === 0) {
+      throw new Error('CSV文件为空')
     }
 
-    // 获取坐标数据
-    const coordinates = csvParser.getCoordinates()
-    currentCoordinates.value = coordinates
+    // 解析标题行
+    const headers = lines[0].split(',').map(h => h.trim())
 
-    // 更新统计信息
-    const info = csvParser.getInfo()
-    const processTime = Date.now() - processingStartTime
+    // 检查是否是新的CSV格式 (Name, CEM_No, 时间列...)
+    if (headers.length >= 3 && headers[0] === 'Name' && headers[1] === 'CEM_No') {
+      // 新格式处理
+      infoMessage.value = '正在处理监测数据文件...'
 
-    mapStats.value = {
-      ...info,
-      status: 'updated',
-      processTime: processTime,
-      lastUpdate: new Date().toISOString(),
-      dataRange: calculateDataRange(currentCoordinates.value)
-    }
+      // 解析数据行
+      const dataLines = lines.slice(1)
+      const csvData = dataLines.map((line, index) => {
+        const values = line.split(',').map(v => v.trim())
+        const row = {}
+        headers.forEach((header, headerIndex) => {
+          row[header] = values[headerIndex] || ''
+        })
+        return { id: index + 1, ...row }
+      })
 
-    // 显示成功消息
-    if (!file.name.includes('kml.csv')) {
-      successMessage.value = `CSV文件解析成功！共提取${coordinates.length}个坐标点`
+      // 存储CSV数据和时间列
+      uploadedCsvData.value = csvData
+      timeColumns.value = headers.slice(2) // CEM_No后面的列都是时间列
+
+      // 将第一列时间数据匹配到SHP数据
+      await matchCsvDataToShp(csvData, headers[2]) // 使用第一个时间列
+
+      // 更新统计信息
+      const processTime = Date.now() - processingStartTime
+      mapStats.value = {
+        fileName: file.name,
+        dataRowCount: csvData.length,
+        timeColumnCount: timeColumns.value.length,
+        matchedPoints: shpJsonData.value.filter(item => item.value !== null).length,
+        status: 'updated',
+        processTime: processTime,
+        lastUpdate: new Date().toISOString()
+      }
+
+      successMessage.value = `监测数据文件处理成功！共${csvData.length}条记录，${timeColumns.value.length}个时间点，成功匹配${mapStats.value.matchedPoints}个检测点`
+
     } else {
-      successMessage.value = `默认数据加载成功！共提取${coordinates.length}个坐标点`
+      // 原有的KML格式处理逻辑
+      await csvParser.parseCSVFile(file)
+
+      // 清除处理中消息
+      if (!file.name.includes('kml.csv')) {
+        infoMessage.value = ''
+      }
+
+      // 获取坐标数据
+      const coordinates = csvParser.getCoordinates()
+      currentCoordinates.value = coordinates
+
+      // 更新统计信息
+      const info = csvParser.getInfo()
+      const processTime = Date.now() - processingStartTime
+
+      mapStats.value = {
+        ...info,
+        status: 'updated',
+        processTime: processTime,
+        lastUpdate: new Date().toISOString(),
+        dataRange: calculateDataRange(currentCoordinates.value)
+      }
+
+      // 显示成功消息
+      if (!file.name.includes('kml.csv')) {
+        successMessage.value = `CSV文件解析成功！共提取${coordinates.length}个坐标点`
+      } else {
+        successMessage.value = `默认数据加载成功！共提取${coordinates.length}个坐标点`
+      }
     }
 
   } catch (error) {
@@ -200,9 +310,104 @@ const handleFileSelected = async (file) => {
     currentCoordinates.value = []
   } finally {
     isProcessing.value = false
+    infoMessage.value = ''
   }
 }
 
+
+// 将CSV数据与SHP数据按CEM_No匹配
+const matchCsvDataToShp = async (csvData, timeColumnName) => {
+  if (!shpJsonData.value.length || !csvData.length) {
+    console.warn('SHP数据或CSV数据为空，无法匹配')
+    return
+  }
+
+  // 创建CEM_No到CSV数据的映射
+  const csvMap = new Map()
+  csvData.forEach(row => {
+    if (row.CEM_No) {
+      csvMap.set(row.CEM_No, row[timeColumnName])
+    }
+  })
+
+  // 更新SHP数据的value字段
+  let matchedCount = 0
+  shpJsonData.value.forEach(shpItem => {
+    if (shpItem.CEM_No && csvMap.has(shpItem.CEM_No)) {
+      const value = csvMap.get(shpItem.CEM_No)
+      const numValue = parseFloat(value)
+      shpItem.value = isNaN(numValue) ? null : numValue
+      if (shpItem.value !== null) {
+        matchedCount++
+      }
+    } else {
+      shpItem.value = null
+    }
+  })
+
+  console.log(`成功匹配 ${matchedCount} 个检测点的数据`)
+
+  // 更新综合统计信息
+  updateCombinedStats()
+}
+
+// 计算站点的峰值水位和峰值时间
+const calculatePeakValues = (cemNo) => {
+  if (!uploadedCsvData.value.length || !cemNo) {
+    return { peakValue: null, peakTime: null }
+  }
+
+  let peakValue = -Infinity
+  let peakTime = null
+
+  // 查找对应CEM_No的数据
+  const csvRow = uploadedCsvData.value.find(row => row.CEM_No === cemNo)
+  if (!csvRow) {
+    return { peakValue: null, peakTime: null }
+  }
+
+  // 遍历所有时间列，找到最大值
+  timeColumns.value.forEach(timeColumn => {
+    const value = parseFloat(csvRow[timeColumn])
+    if (!isNaN(value) && value > peakValue) {
+      peakValue = value
+      peakTime = timeColumn
+    }
+  })
+
+  return {
+    peakValue: peakValue === -Infinity ? null : peakValue,
+    peakTime: peakTime
+  }
+}
+
+// 获取预警级别对应的CSS类名
+const getWarningLevelClass = (value) => {
+  if (value === null || value === undefined) {
+    return 'no-data'
+  }
+
+  const numValue = parseFloat(value)
+  if (numValue >= 2.5) return 'black-warning'
+  if (numValue >= 1.5) return 'red-warning'
+  if (numValue >= 1.0) return 'orange-warning'
+  if (numValue >= 0.5) return 'yellow-warning'
+  return 'blue-warning'
+}
+
+// 获取预警级别文本
+const getWarningLevelText = (value) => {
+  if (value === null || value === undefined) {
+    return '暂无数据'
+  }
+
+  const numValue = parseFloat(value)
+  if (numValue >= 2.5) return '黑色预警 (5级)'
+  if (numValue >= 1.5) return '红色预警 (4级)'
+  if (numValue >= 1.0) return '橙色预警 (3级)'
+  if (numValue >= 0.5) return '黄色预警 (2级)'
+  return '蓝色预警 (1级)'
+}
 
 // 处理地图就绪
 const handleMapReady = () => {
@@ -214,37 +419,29 @@ const handleMapReady = () => {
 const handlePointClicked = (pointInfo) => {
   console.log('点击了圆点:', pointInfo)
 
-  // 构建点击信息
   const { data, coordinates, index, color } = pointInfo
-  let message = `点击了第 ${index + 1} 个检测点\n`
-  message += `坐标: [${coordinates[0].toFixed(6)}, ${coordinates[1].toFixed(6)}]\n`
 
-  if (data) {
-    // 如果有数据，显示相关信息
-    if (data.value !== null && data.value !== undefined) {
-      const value = parseFloat(data.value)
-      let level = ''
-
-      if (value >= 2.5) {
-        level = '黑色预警 (5级) - 2.5m以上'
-      } else if (value >= 1.5) {
-        level = '红色预警 (4级) - 1.5-2.5m'
-      } else if (value >= 1.0) {
-        level = '橙色预警 (3级) - 1.0-1.5m'
-      } else if (value >= 0.5) {
-        level = '黄色预警 (2级) - 0.5-1.0m'
-      } else {
-        level = '蓝色预警 (1级) - 0.5m以下'
-      }
-
-      message += `预警值: ${value}m - ${level}`
-    }
-  } else {
-    message += `预警值: 暂无数据`
+  if (!data || !data.CEM_No) {
+    console.warn('点击的站点没有完整信息')
+    return
   }
 
-  // 显示点击信息
-  infoMessage.value = message
+  // 计算峰值数据
+  const peakData = calculatePeakValues(data.CEM_No)
+
+  // 设置选中的站点信息
+  selectedPoint.value = {
+    index: index,
+    cemNo: data.CEM_No,
+    name: data.Name || data.NAME || data.CEM_No, // 优先显示Name字段，其次NAME，最后CEM_No
+    coordinates: coordinates,
+    currentValue: data.value,
+    peakValue: peakData.peakValue,
+    peakTime: peakData.peakTime,
+    color: color
+  }
+
+  console.log(`选中站点: ${selectedPoint.value.name}`)
 }
 
 
@@ -386,12 +583,43 @@ const updateCombinedStats = () => {
   const shpCount = shpCoordinates.value.length
   const totalCount = kmlCount + shpCount
 
+  // 计算各预警级别数量
+  const warningCounts = {
+    black: 0,    // 5级 - 2.5m以上
+    red: 0,      // 4级 - 1.5-2.5m
+    orange: 0,   // 3级 - 1.0-1.5m
+    yellow: 0,   // 2级 - 0.5-1.0m
+    blue: 0      // 1级 - 0.5m以下
+  }
+
+  let valueCount = 0
+  shpJsonData.value.forEach(item => {
+    if (item.value !== null && item.value !== undefined) {
+      valueCount++
+      const value = parseFloat(item.value)
+      if (value >= 2.5) {
+        warningCounts.black++
+      } else if (value >= 1.5) {
+        warningCounts.red++
+      } else if (value >= 1.0) {
+        warningCounts.orange++
+      } else if (value >= 0.5) {
+        warningCounts.yellow++
+      } else {
+        warningCounts.blue++
+      }
+    }
+  })
+
   mapStats.value = {
     kmlPointCount: kmlCount,
     shpPointCount: shpCount,
     totalPointCount: totalCount,
+    dataPointCount: valueCount, // 有数据的点数
+    warningCounts: warningCounts,
     status: 'updated',
-    lastUpdate: new Date().toISOString()
+    lastUpdate: new Date().toISOString(),
+    ...mapStats.value // 保留其他已有属性
   }
 }
 </script>
@@ -518,7 +746,9 @@ const updateCombinedStats = () => {
 .stats-section {
   width: 280px;
   flex-shrink: 0;
-  max-height: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 .stats-panel {
@@ -702,6 +932,233 @@ const updateCombinedStats = () => {
   font-weight: 500;
 }
 
+/* 站点详情卡片样式 */
+.point-detail-section {
+  width: 100%;
+  flex-shrink: 0;
+  margin-top: 1rem;
+}
+
+.point-detail-panel {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.point-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.point-detail-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.point-detail-title::before {
+  content: '';
+  width: 4px;
+  height: 20px;
+  background: #10b981;
+  border-radius: 2px;
+}
+
+.point-detail-content {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.no-data-message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+  color: #9ca3af;
+  font-size: 1rem;
+  font-style: italic;
+  text-align: center;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 2px dashed #e5e7eb;
+}
+
+.station-name-display {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: #f3f4f6;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.warning-color-box {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  background: #9ca3af; /* 默认灰色 */
+}
+
+.warning-color-box.black-warning {
+  background: #1f2937;
+}
+
+.warning-color-box.red-warning {
+  background: #dc2626;
+}
+
+.warning-color-box.orange-warning {
+  background: #ea580c;
+}
+
+.warning-color-box.yellow-warning {
+  background: #ca8a04;
+}
+
+.warning-color-box.blue-warning {
+  background: #2563eb;
+}
+
+.station-name-text {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1f2937;
+  flex: 1;
+}
+
+.detail-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem;
+  background: #f9fafb;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.detail-item:hover {
+  background: #f3f4f6;
+}
+
+.warning-level-display {
+  font-size: 1rem;
+  font-weight: 700;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.detail-label {
+  font-size: 0.875rem;
+  color: #6b7280;
+  font-weight: 600;
+  flex-shrink: 0;
+  min-width: 80px;
+}
+
+.detail-value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1f2937;
+  line-height: 1.2;
+  text-align: right;
+}
+
+/* 确保所有值都是黑色，覆盖之前的预警颜色样式 */
+.detail-value.black-warning,
+.detail-value.red-warning,
+.detail-value.orange-warning,
+.detail-value.yellow-warning,
+.detail-value.blue-warning {
+  color: #1f2937 !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+
+/* 预警级别的颜色样式 */
+.detail-value.black-warning,
+.warning-level.black-warning {
+  color: #1f2937 !important;
+  background: rgba(31, 41, 55, 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.detail-value.red-warning,
+.warning-level.red-warning {
+  color: #dc2626 !important;
+  background: rgba(220, 38, 38, 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.detail-value.orange-warning,
+.warning-level.orange-warning {
+  color: #ea580c !important;
+  background: rgba(234, 88, 12, 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.detail-value.yellow-warning,
+.warning-level.yellow-warning {
+  color: #ca8a04 !important;
+  background: rgba(202, 138, 4, 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.detail-value.blue-warning,
+.warning-level.blue-warning {
+  color: #2563eb !important;
+  background: rgba(37, 99, 235, 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.detail-value.no-data {
+  color: #9ca3af !important;
+  font-weight: 500;
+  font-style: italic;
+}
+
+.warning-level {
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-top: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  display: inline-block;
+  text-align: left;
+}
+
 /* 响应式设计 */
 @media (max-width: 1024px) {
   .main-container {
@@ -727,6 +1184,10 @@ const updateCombinedStats = () => {
   .stats-section {
     width: 100%;
     order: 2;
+  }
+
+  .detail-grid {
+    grid-template-columns: 1fr;
   }
 
   .warning-stats-grid {

@@ -71,7 +71,7 @@ const props = defineProps({
 const mapContainer = ref(null)
 const isMapReady = ref(false)
 const isFullscreen = ref(false)
-const zoom = ref(14.3)
+const zoom = ref(14)
 const hasPath = ref(false)
 
 // 地图实例
@@ -98,10 +98,10 @@ const initMap = async () => {
     irregularPolygon = new AMap.Polygon({
       path: [],
       strokeColor: '#FF6B35',
-      strokeWeight: 3,
-      strokeOpacity: 0.9,
+      strokeWeight: 2,
+      strokeOpacity: 0.5,
       fillColor: '#FF9558',
-      fillOpacity: 0.4,
+      fillOpacity: 0.2,
       strokeStyle: 'solid'
     })
 
@@ -191,7 +191,7 @@ const updateShpCircles = (coordinates) => {
 
         const circle = new AMap.Circle({
           center: [lng, lat],
-          radius: 20, // 10米直径
+          radius: 30,
           strokeColor: color,
           strokeWeight: 0, // 移除边框
           strokeOpacity: 0,
