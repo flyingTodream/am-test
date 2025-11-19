@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>地图标注与CSV解析工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f5f5f5;
+            line-height: 1.6;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem 0;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            margin-bottom: 0.3rem;
+            font-weight: 600;
+        }
+
+        .header p {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .content {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 8px;
+            margin-bottom: 12px;
+        }
+
+        #mapContainer {
+            width: 100%;
+            height: 800px;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5a6fd8;
+            transform: translateY(-2px);
+        }
+
+        .error-message {
+            background: #fed7d7;
+            color: #c53030;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            border-left: 4px solid #c53030;
+        }
+
+        .success-message {
+            background: #c6f6d5;
+            color: #22543d;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            border-left: 4px solid #38a169;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 0.5rem;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+    <script src="https://webapi.amap.com/maps?v=2.0&key=e79b330cc76d1a51b5d03933e1704077"></script>
+    <script src="./csv-parser.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <div class="content">
+            <h2 style="margin-bottom: 1.5rem; color: #2d3748;">地图标注与CSV路径更新</h2>
+
+            <!-- CSV上传区域 -->
+            <div style="margin-bottom: 1rem; text-align: center;">
+                <button class="btn btn-primary" onclick="document.getElementById('csvFile').click()"
+                    style="padding: 0.75rem 2rem;">
+                    上传CSV坐标文件
+                </button>
+                <input type="file" id="csvFile" class="file-input" accept=".csv">
+            </div>
+
+            <div id="loadingArea" style="display: none; margin-top: 1rem; text-align: center;">
+                <div class="loading"></div>
+                <span style="color: #718096;">正在解析CSV文件并更新地图...</span>
+            </div>
+
+            <div id="errorMessage" class="error-message" style="display: none;"></div>
+            <div id="successMessage" class="success-message" style="display: none;"></div>
+        </div>
+
+        <!-- 地图区域 -->
+        <div id="mapContainer"></div>
+    </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let map;
+        let irregularPolygon = null;
+        let csvParser;
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function () {
+            csvParser = new CSVParser();
+            initMap();
+            initCSVUpload();
+            initDragAndDrop();
+        });
+
+        // 初始化地图
+        function initMap() {
+            map = new AMap.Map('mapContainer', {
+                zoom: 14,
+                center: [116.397428, 39.90923],
+                dragEnable: false,
+                zoomEnable: false,
+                keyboardEnable: false,
+                doubleClickZoom: false
+            });
+
+            // 添加不规则闭合区域
+            irregularPolygon = new AMap.Polygon({
+                path: [
+
+                ],
+                strokeColor: '#FF6B35',
+                strokeWeight: 3,
+                strokeOpacity: 0.9,
+                fillColor: '#FF9558',
+                fillOpacity: 0.4,
+                strokeStyle: 'solid'
+            });
+            map.add(irregularPolygon);
+        }
+
+        // 初始化CSV上传功能
+        function initCSVUpload() {
+            const fileInput = document.getElementById('csvFile');
+            fileInput.addEventListener('change', handleFileSelect);
+        }
+
+        // 初始化拖拽功能
+        function initDragAndDrop() {
+            const content = document.querySelector('.content');
+
+            content.addEventListener('dragover', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+
+            content.addEventListener('drop', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    const file = files[0];
+                    if (file.name.endsWith('.csv') || file.type === 'text/csv') {
+                        processFile(file);
+                    } else {
+                        showError('请上传CSV格式的文件');
+                    }
+                }
+            });
+        }
+
+        // 处理文件选择
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                processFile(file);
+            }
+        }
+
+        // 处理文件
+        async function processFile(file) {
+            hideError();
+            document.getElementById('successMessage').style.display = 'none';
+
+            // 显示加载状态
+            document.querySelector('button[onclick*="csvFile"]').style.display = 'none';
+            document.getElementById('loadingArea').style.display = 'block';
+
+            try {
+                await csvParser.parseCSVFile(file);
+                updateMapPath();
+            } catch (error) {
+                showError(error.message);
+                document.querySelector('button[onclick*="csvFile"]').style.display = 'inline-block';
+                document.getElementById('loadingArea').style.display = 'none';
+            }
+        }
+
+        // 更新地图路径
+        function updateMapPath() {
+            const coordinates = csvParser.getCoordinates();
+
+            if (!irregularPolygon || coordinates.length === 0) {
+                showError('没有可用的坐标数据');
+                document.querySelector('button[onclick*="csvFile"]').style.display = 'inline-block';
+                document.getElementById('loadingArea').style.display = 'none';
+                return;
+            }
+
+            try {
+                // 更新多边形的路径
+                irregularPolygon.setPath(coordinates);
+
+                // 自动调整地图视野以适应新的区域
+                map.setBounds(irregularPolygon.getBounds());
+
+                // 显示成功消息
+                showSuccess(`地图路径已更新！使用了${coordinates.length}个坐标点`);
+
+                // 恢复上传界面
+                setTimeout(() => {
+                    document.querySelector('button[onclick*="csvFile"]').style.display = 'inline-block';
+                    document.getElementById('loadingArea').style.display = 'none';
+                    document.getElementById('csvFile').value = '';
+                }, 1000);
+
+            } catch (error) {
+                showError('更新地图路径失败: ' + error.message);
+                document.querySelector('button[onclick*="csvFile"]').style.display = 'inline-block';
+                document.getElementById('loadingArea').style.display = 'none';
+            }
+        }
+
+        // 显示错误信息
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            document.getElementById('successMessage').style.display = 'none';
+        }
+
+        // 隐藏错误信息
+        function hideError() {
+            document.getElementById('errorMessage').style.display = 'none';
+        }
+
+        // 显示成功信息
+        function showSuccess(message) {
+            const successDiv = document.getElementById('successMessage');
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+            hideError();
+        }
+    </script>
+</body>
+
+</html>
