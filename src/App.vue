@@ -9,11 +9,7 @@
         <!-- CSV上传组件 -->
         <div class="sidebar-section">
           <h3 class="section-title">数据上传</h3>
-          <CsvUploader
-            ref="csvUploader"
-            @file-selected="handleFileSelected"
-            @file-removed="handleFileRemoved"
-          />
+          <CsvUploader ref="csvUploader" @file-selected="handleFileSelected" />
         </div>
 
         <!-- 图例说明 -->
@@ -58,19 +54,7 @@
           </div>
         </div>
 
-        <!-- 操作按钮 -->
-        <div class="sidebar-section" v-if="currentCoordinates.length > 0">
-          <h3 class="section-title">操作</h3>
-          <div class="action-buttons">
-            <button class="btn btn-secondary" @click="clearData">
-              清除数据
-            </button>
-            <button class="btn btn-primary" @click="downloadData">
-              下载数据
-            </button>
-          </div>
-        </div>
-      </div>
+              </div>
 
       <!-- 地图和统计区域 -->
       <div class="map-stats-section">
@@ -79,9 +63,10 @@
           <MapViewer
             ref="mapViewer"
             :coordinates="currentCoordinates"
+            :shp-coordinates="shpCoordinates"
+            :shp-data="shpJsonData"
             :map-stats="mapStats"
-            @map-ready="handleMapReady"
-          />
+            @map-ready="handleMapReady" />
         </div>
 
         <!-- 实时统计区域 -->
@@ -91,7 +76,8 @@
               <h4 class="stats-title">实时统计</h4>
               <div class="stats-status" :class="mapStats ? mapStats.status : 'ready'">
                 <div class="status-dot"></div>
-                <span>{{ mapStats ? (mapStats.status === 'loading' ? '加载中' : mapStats.status === 'updated' ? '已更新' : mapStats.status === 'error' ? '错误' : '就绪') : '就绪' }}</span>
+                <span>{{ mapStats ? (mapStats.status === 'loading' ? '加载中' : mapStats.status === 'updated' ? '已更新' :
+                  mapStats.status === 'error' ? '错误' : '就绪') : '就绪' }}</span>
               </div>
             </div>
 
@@ -132,14 +118,8 @@
     </div>
 
     <!-- 状态消息组件 -->
-    <StatusMessage
-      v-model:error="errorMessage"
-      v-model:success="successMessage"
-      v-model:warning="warningMessage"
-      v-model:info="infoMessage"
-      :auto-close="true"
-      :duration="5000"
-    />
+    <StatusMessage v-model:error="errorMessage" v-model:success="successMessage" v-model:warning="warningMessage"
+      v-model:info="infoMessage" :auto-close="true" :duration="5000" />
   </div>
 </template>
 
@@ -158,6 +138,8 @@ const isProcessing = ref(false)
 const currentCoordinates = ref([])
 const currentFile = ref(null)
 const mapStats = ref(null)
+const shpJsonData = ref([])
+const shpCoordinates = ref([])
 
 // 消息状态
 const errorMessage = ref('')
@@ -220,61 +202,6 @@ const handleFileSelected = async (file) => {
   }
 }
 
-// 处理文件移除
-const handleFileRemoved = () => {
-  clearData()
-}
-
-// 清除数据
-const clearData = () => {
-  currentCoordinates.value = []
-  currentFile.value = null
-  mapStats.value = null
-  csvParser.clear()
-
-  // 清除地图路径
-  if (mapViewer.value && mapViewer.value.updateMapPath) {
-    mapViewer.value.updateMapPath([])
-  }
-
-  // 清除上传组件中的文件信息
-  if (csvUploader.value && csvUploader.value.removeFile) {
-    csvUploader.value.removeFile()
-  }
-
-  successMessage.value = '数据已清除'
-}
-
-// 下载数据
-const downloadData = () => {
-  if (!csvParser || currentCoordinates.value.length === 0) {
-    warningMessage.value = '没有可下载的数据'
-    return
-  }
-
-  try {
-    const data = {
-      headers: csvParser.currentHeaders,
-      coordinates: currentCoordinates.value,
-      stats: csvParser.getInfo(),
-      exportTime: new Date().toISOString()
-    }
-
-    const dataStr = JSON.stringify(data, null, 2)
-    const dataBlob = new Blob([dataStr], { type: 'application/json' })
-    const url = URL.createObjectURL(dataBlob)
-
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `coordinates-${Date.now()}.json`
-    link.click()
-
-    URL.revokeObjectURL(url)
-    successMessage.value = '数据已下载'
-  } catch (error) {
-    errorMessage.value = '下载数据失败: ' + error.message
-  }
-}
 
 // 处理地图就绪
 const handleMapReady = () => {
@@ -310,39 +237,123 @@ onMounted(async () => {
       return
     }
 
-    // 地图API加载完成后，自动加载kml.csv文件
-    await loadDefaultCsvFile()
+    // 地图API加载完成后，加载默认文件
+    await loadDefaultFiles()
   }
 
   checkAMapReady()
 })
 
-// 加载默认的CSV文件
-const loadDefaultCsvFile = async () => {
+// 加载默认的文件
+const loadDefaultFiles = async () => {
   try {
     // 显示处理信息
     infoMessage.value = '正在加载默认数据文件...'
 
-    // 加载CSV文件 - 先尝试public目录，再尝试根目录
-    const response = await fetch('/kml.csv')
-    if (!response.ok) {
-      throw new Error('无法加载默认数据文件')
+    // 同时加载kml.csv和shp.csv
+    const [kmlResponse, shpResponse] = await Promise.allSettled([
+      fetch('/kml.csv'),
+      fetch('/shp.csv')
+    ])
+
+    let kmlLoaded = false
+    let shpLoaded = false
+    let totalPoints = 0
+
+    // 处理kml.csv文件
+    if (kmlResponse.status === 'fulfilled' && kmlResponse.value.ok) {
+      const csvText = await kmlResponse.value.text()
+      const blob = new Blob([csvText], { type: 'text/csv' })
+      const file = new File([blob], 'kml.csv', { type: 'text/csv' })
+
+      // 使用现有的文件处理逻辑
+      await handleFileSelected(file)
+      kmlLoaded = true
+      totalPoints += currentCoordinates.value.length
+      console.log('成功加载kml.csv文件')
+    } else {
+      console.warn('加载kml.csv文件失败')
     }
 
-    const csvText = await response.text()
-    const blob = new Blob([csvText], { type: 'text/csv' })
-    const file = new File([blob], 'kml.csv', { type: 'text/csv' })
+    // 处理shp.csv文件
+    if (shpResponse.status === 'fulfilled' && shpResponse.value.ok) {
+      const csvText = await shpResponse.value.text()
+      const jsonData = parseShpCsvToJson(csvText)
 
-    // 使用现有的文件处理逻辑
-    await handleFileSelected(file)
+      // 保存JSON数据到响应式变量
+      shpJsonData.value = jsonData
+
+      // 提取X,Y坐标并转换为地图坐标
+      const coordinates = jsonData.map(item => [parseFloat(item.X), parseFloat(item.Y)])
+      shpCoordinates.value = coordinates
+
+      shpLoaded = true
+      totalPoints += coordinates.length
+      console.log(`成功加载shp.csv文件，共${coordinates.length}个坐标点`)
+    } else {
+      console.warn('加载shp.csv文件失败')
+    }
+
+    // 更新统计信息
+    updateCombinedStats()
 
     // 清除加载信息
     infoMessage.value = ''
-    console.log('成功加载默认数据文件: kml.csv')
+
+    // 显示成功消息
+    let successMsg = '数据加载完成！'
+    if (kmlLoaded && shpLoaded) {
+      successMsg = `KML和SHP数据加载成功！共提取${totalPoints}个数据点`
+    } else if (kmlLoaded) {
+      successMsg = `KML数据加载成功！共提取${currentCoordinates.value.length}个数据点`
+    } else if (shpLoaded) {
+      successMsg = `SHP数据加载成功！共提取${shpCoordinates.value.length}个数据点`
+    }
+
+    if (kmlLoaded || shpLoaded) {
+      successMessage.value = successMsg
+    } else {
+      infoMessage.value = '无法加载默认数据，请手动上传CSV文件'
+    }
 
   } catch (error) {
-    console.warn('加载默认CSV文件失败:', error.message)
+    console.error('加载默认文件失败:', error.message)
     infoMessage.value = '无法加载默认数据，请手动上传CSV文件'
+  }
+}
+
+// 解析shp.csv为JSON格式
+const parseShpCsvToJson = (csvText) => {
+  const lines = csvText.trim().split('\n')
+  const headers = lines[0].split(',').map(h => h.trim())
+
+  const jsonData = []
+  for (let i = 1; i < lines.length; i++) {
+    const values = lines[i].split(',').map(v => v.trim())
+    const row = {}
+    headers.forEach((header, index) => {
+      row[header] = values[index] || ''
+    })
+    // 添加value字段，默认为null
+    row.value = null
+    jsonData.push(row)
+  }
+
+  return jsonData
+}
+
+// 更新综合统计信息
+const updateCombinedStats = () => {
+  const kmlCount = currentCoordinates.value.length
+  const shpCount = shpCoordinates.value.length
+  const totalCount = kmlCount + shpCount
+
+  mapStats.value = {
+    kmlPointCount: kmlCount,
+    shpPointCount: shpCount,
+    totalPointCount: totalCount,
+    status: 'updated',
+    lastUpdate: new Date().toISOString()
   }
 }
 </script>
@@ -456,43 +467,6 @@ const loadDefaultCsvFile = async () => {
   white-space: nowrap;
 }
 
-.action-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.btn {
-  padding: 0.75rem 1rem;
-  border: none;
-  border-radius: 8px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  text-align: center;
-}
-
-.btn-primary {
-  background: #667eea;
-  color: white;
-}
-
-.btn-primary:hover {
-  background: #5a6fd8;
-  transform: translateY(-1px);
-}
-
-.btn-secondary {
-  background: #f3f4f6;
-  color: #4b5563;
-  border: 1px solid #d1d5db;
-}
-
-.btn-secondary:hover {
-  background: #e5e7eb;
-  border-color: #9ca3af;
-}
 
 .map-section {
   flex: 1;
@@ -588,8 +562,15 @@ const loadDefaultCsvFile = async () => {
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
 }
 
 .warning-stats-grid {
@@ -739,10 +720,6 @@ const loadDefaultCsvFile = async () => {
 
   .section-title {
     font-size: 1rem;
-  }
-
-  .stat-item {
-    padding: 0.5rem;
   }
 
   .map-section {

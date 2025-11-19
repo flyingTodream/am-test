@@ -52,22 +52,32 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
+  shpCoordinates: {
+    type: Array,
+    default: () => []
+  },
+  shpData: {
+    type: Array,
+    default: () => []
+  },
   mapStats: {
     type: Object,
     default: null
   }
 })
 
+
 // 响应式数据
 const mapContainer = ref(null)
 const isMapReady = ref(false)
 const isFullscreen = ref(false)
-const zoom = ref(14)
+const zoom = ref(14.3)
 const hasPath = ref(false)
 
 // 地图实例
 let map = null
 let irregularPolygon = null
+let shpCircleMarkers = []
 
 // 初始化地图
 const initMap = async () => {
@@ -76,7 +86,7 @@ const initMap = async () => {
   try {
     // 创建地图实例
     map = new AMap.Map(mapContainer.value, {
-      zoom: 13,
+      zoom: zoom.value,
       center: [116.397428, 39.90923],
       dragEnable: true,
       zoomEnable: false,
@@ -133,12 +143,76 @@ const updateMapPath = (coordinates) => {
   }
 }
 
+// 根据value字段的值获取对应颜色
+const getColorByValue = (value) => {
+  // 如果value为null或undefined，使用默认颜色FF6B35
+  if (value === null || value === undefined) {
+    return '#FF6B35' // 默认颜色
+  }
+
+  const numValue = parseFloat(value)
+  if (numValue >= 2.5) return '#1f2937' // 黑色预警 (5级) - 2.5m以上
+  if (numValue >= 1.5) return '#dc2626' // 红色预警 (4级) - 1.5-2.5m
+  if (numValue >= 1.0) return '#ea580c' // 橙色预警 (3级) - 1.0-1.5m
+  if (numValue >= 0.5) return '#ca8a04' // 黄色预警 (2级) - 0.5-1.0m
+  return '#2563eb' // 蓝色预警 (1级) - 0.5m以下
+}
+
+// 更新SHP圆点
+const updateShpCircles = (coordinates) => {
+  if (!map) {
+    return
+  }
+
+  try {
+    // 清除之前的圆点
+    shpCircleMarkers.forEach(circle => {
+      map.remove(circle)
+    })
+    shpCircleMarkers = []
+
+    // 添加新的圆点
+    if (coordinates && coordinates.length > 0 && props.shpData.length > 0) {
+      coordinates.forEach(([lng, lat], index) => {
+        // 获取对应索引的SHP数据
+        const shpItem = props.shpData[index]
+        const color = shpItem ? getColorByValue(shpItem.value) : '#FF6B35' // 默认颜色
+
+        const circle = new AMap.Circle({
+          center: [lng, lat],
+          radius: 20, // 10米直径
+          strokeColor: color,
+          strokeWeight: 0, // 移除边框
+          strokeOpacity: 0,
+          fillColor: color, // 使用根据value值计算的颜色
+          fillOpacity: 1.0, // 完全不透明，实心效果
+          strokeStyle: 'solid'
+        })
+
+        map.add(circle)
+        shpCircleMarkers.push(circle)
+      })
+
+    }
+  } catch (error) {
+    console.error('更新SHP圆点失败:', error)
+  }
+}
+
+
 // 重置视图
 const resetView = () => {
   if (!map) return
 
   if (hasPath.value && irregularPolygon) {
     map.setBounds(irregularPolygon.getBounds())
+  } else if (shpCircleMarkers.length > 0) {
+    // 如果只有SHP圆点，计算所有圆点的边界
+    const bounds = new AMap.Bounds()
+    shpCircleMarkers.forEach(circle => {
+      bounds.extend(circle.getCenter())
+    })
+    map.setBounds(bounds)
   } else {
     map.setCenter([116.397428, 39.90923])
     map.setZoom(13)
@@ -181,6 +255,13 @@ watch(() => props.coordinates, (newCoordinates) => {
   }
 }, { deep: true })
 
+// 监听SHP坐标变化
+watch([() => props.shpCoordinates, () => props.shpData], ([newShpCoordinates, newShpData]) => {
+  if (newShpCoordinates && newShpCoordinates.length > 0 && newShpData && newShpData.length > 0) {
+    updateShpCircles(newShpCoordinates)
+  }
+}, { deep: true })
+
 // 监听全屏状态变化
 const handleFullscreenChange = () => {
   isFullscreen.value = !!document.fullscreenElement
@@ -212,6 +293,7 @@ onUnmounted(() => {
     map.destroy()
     map = null
     irregularPolygon = null
+    shpCircleMarkers = []
   }
 })
 
