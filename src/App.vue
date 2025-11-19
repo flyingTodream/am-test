@@ -176,13 +176,17 @@ const handleFileSelected = async (file) => {
     const processingStartTime = Date.now()
 
     // 显示处理信息
-    infoMessage.value = '正在解析CSV文件...'
+    if (!file.name.includes('kml.csv')) {
+      infoMessage.value = '正在解析CSV文件...'
+    }
 
     // 解析CSV文件
     await csvParser.parseCSVFile(file)
 
     // 清除处理中消息
-    infoMessage.value = ''
+    if (!file.name.includes('kml.csv')) {
+      infoMessage.value = ''
+    }
 
     // 获取坐标数据
     const coordinates = csvParser.getCoordinates()
@@ -201,7 +205,11 @@ const handleFileSelected = async (file) => {
     }
 
     // 显示成功消息
-    successMessage.value = `CSV文件解析成功！共提取${coordinates.length}个坐标点`
+    if (!file.name.includes('kml.csv')) {
+      successMessage.value = `CSV文件解析成功！共提取${coordinates.length}个坐标点`
+    } else {
+      successMessage.value = `默认数据加载成功！共提取${coordinates.length}个坐标点`
+    }
 
   } catch (error) {
     errorMessage.value = error.message
@@ -294,16 +302,49 @@ const calculateDataRange = (coordinates) => {
 
 
 // 页面加载完成后初始化
-onMounted(() => {
+onMounted(async () => {
   // 等待地图API加载完成
-  const checkAMapReady = () => {
+  const checkAMapReady = async () => {
     if (typeof AMap === 'undefined') {
       setTimeout(checkAMapReady, 500)
+      return
     }
+
+    // 地图API加载完成后，自动加载kml.csv文件
+    await loadDefaultCsvFile()
   }
 
   checkAMapReady()
 })
+
+// 加载默认的CSV文件
+const loadDefaultCsvFile = async () => {
+  try {
+    // 显示处理信息
+    infoMessage.value = '正在加载默认数据文件...'
+
+    // 加载CSV文件 - 先尝试public目录，再尝试根目录
+    const response = await fetch('/kml.csv')
+    if (!response.ok) {
+      throw new Error('无法加载默认数据文件')
+    }
+
+    const csvText = await response.text()
+    const blob = new Blob([csvText], { type: 'text/csv' })
+    const file = new File([blob], 'kml.csv', { type: 'text/csv' })
+
+    // 使用现有的文件处理逻辑
+    await handleFileSelected(file)
+
+    // 清除加载信息
+    infoMessage.value = ''
+    console.log('成功加载默认数据文件: kml.csv')
+
+  } catch (error) {
+    console.warn('加载默认CSV文件失败:', error.message)
+    infoMessage.value = '无法加载默认数据，请手动上传CSV文件'
+  }
+}
 </script>
 
 <style scoped>
