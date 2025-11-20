@@ -1,193 +1,240 @@
 <template>
-  <div class="app">
-    <!-- Header -->
-    <AppHeader />
+  <n-config-provider :theme="darkTheme" :locale="zhCN" :date-locale="dateZhCN">
+    <div class="app">
+      <!-- Header -->
+      <AppHeader />
 
-    <!-- Main Content -->
-    <div class="main-container">
-      <div class="sidebar">
-        <!-- CSV上传组件 -->
-        <div class="sidebar-section">
-          <h3 class="section-title">数据上传</h3>
-          <CsvUploader ref="csvUploader" @file-selected="handleFileSelected" />
-        </div>
-
-        <!-- 图例说明 -->
-        <div class="sidebar-section">
-          <h3 class="section-title">图例说明</h3>
-          <div class="legend-container">
-            <div class="legend-item">
-              <div class="legend-color" style="background: #1f2937;"></div>
-              <div class="legend-content">
-                <span class="legend-title">黑色预警</span>
-                <span class="legend-desc">（5级）- 2.5m以上</span>
-              </div>
-            </div>
-            <div class="legend-item">
-              <div class="legend-color" style="background: #dc2626;"></div>
-              <div class="legend-content">
-                <span class="legend-title">红色预警</span>
-                <span class="legend-desc">（4级）- 1.5-2.5m</span>
-              </div>
-            </div>
-            <div class="legend-item">
-              <div class="legend-color" style="background: #ea580c;"></div>
-              <div class="legend-content">
-                <span class="legend-title">橙色预警</span>
-                <span class="legend-desc">（3级）- 1.0-1.5m</span>
-              </div>
-            </div>
-            <div class="legend-item">
-              <div class="legend-color" style="background: #ca8a04;"></div>
-              <div class="legend-content">
-                <span class="legend-title">黄色预警</span>
-                <span class="legend-desc">（2级）- 0.5-1.0m</span>
-              </div>
-            </div>
-            <div class="legend-item">
-              <div class="legend-color" style="background: #2563eb;"></div>
-              <div class="legend-content">
-                <span class="legend-title">蓝色预警</span>
-                <span class="legend-desc">（1级）- 0.5m以下</span>
-              </div>
-            </div>
+      <!-- Main Content -->
+      <div class="main-container">
+        <div class="sidebar">
+          <!-- CSV上传组件 -->
+          <div class="sidebar-section">
+            <h3 class="section-title">数据上传</h3>
+            <CsvUploader ref="csvUploader" @file-selected="handleFileSelected" />
           </div>
-        </div>
 
+          <!-- 图例说明 -->
+          <div class="sidebar-section">
+            <h3 class="section-title">图例说明</h3>
+            <div class="legend-container">
+              <div class="legend-item">
+                <div class="legend-color" style="background: #1f2937;"></div>
+                <div class="legend-content">
+                  <span class="legend-title">黑色预警</span>
+                  <span class="legend-desc">（5级）- 2.5m以上</span>
+                </div>
               </div>
-
-      <!-- 地图和统计区域 -->
-      <div class="map-stats-section">
-        <!-- 地图区域 -->
-        <div class="map-section">
-          <MapViewer
-            ref="mapViewer"
-            :coordinates="currentCoordinates"
-            :shp-coordinates="shpCoordinates"
-            :shp-data="shpJsonData"
-            :map-stats="mapStats"
-            @map-ready="handleMapReady"
-            @point-clicked="handlePointClicked" />
-        </div>
-
-        <!-- 实时统计区域 -->
-        <div class="stats-section">
-          <div class="stats-panel">
-            <div class="stats-header">
-              <h4 class="stats-title">实时统计</h4>
-              <div class="stats-status" :class="mapStats ? mapStats.status : 'ready'">
-                <div class="status-dot"></div>
-                <span>{{ mapStats ? (mapStats.status === 'loading' ? '加载中' : mapStats.status === 'updated' ? '已更新' :
-                  mapStats.status === 'error' ? '错误' : '就绪') : '就绪' }}</span>
+              <div class="legend-item">
+                <div class="legend-color" style="background: #dc2626;"></div>
+                <div class="legend-content">
+                  <span class="legend-title">红色预警</span>
+                  <span class="legend-desc">（4级）- 1.5-2.5m</span>
+                </div>
               </div>
-            </div>
-
-            <div class="warning-stats-grid">
-              <div class="warning-stat-box">
-                <div class="stat-number">{{ mapStats ? mapStats.pointCount : 0 }}</div>
-                <div class="stat-desc">检测站点总数</div>
+              <div class="legend-item">
+                <div class="legend-color" style="background: #ea580c;"></div>
+                <div class="legend-content">
+                  <span class="legend-title">橙色预警</span>
+                  <span class="legend-desc">（3级）- 1.0-1.5m</span>
+                </div>
               </div>
-
-              <div class="warning-stat-box black-warning">
-                <div class="stat-number">{{ mapStats?.warningCounts?.black || 0 }}</div>
-                <div class="stat-desc">黑色预警</div>
+              <div class="legend-item">
+                <div class="legend-color" style="background: #ca8a04;"></div>
+                <div class="legend-content">
+                  <span class="legend-title">黄色预警</span>
+                  <span class="legend-desc">（2级）- 0.5-1.0m</span>
+                </div>
               </div>
-
-              <div class="warning-stat-box red-warning">
-                <div class="stat-number">{{ mapStats?.warningCounts?.red || 0 }}</div>
-                <div class="stat-desc">红色预警</div>
-              </div>
-
-              <div class="warning-stat-box orange-warning">
-                <div class="stat-number">{{ mapStats?.warningCounts?.orange || 0 }}</div>
-                <div class="stat-desc">橙色预警</div>
-              </div>
-
-              <div class="warning-stat-box yellow-warning">
-                <div class="stat-number">{{ mapStats?.warningCounts?.yellow || 0 }}</div>
-                <div class="stat-desc">黄色预警</div>
-              </div>
-
-              <div class="warning-stat-box blue-warning">
-                <div class="stat-number">{{ mapStats?.warningCounts?.blue || 0 }}</div>
-                <div class="stat-desc">蓝色预警</div>
+              <div class="legend-item">
+                <div class="legend-color" style="background: #2563eb;"></div>
+                <div class="legend-content">
+                  <span class="legend-title">蓝色预警</span>
+                  <span class="legend-desc">（1级）- 0.5m以下</span>
+                </div>
               </div>
             </div>
           </div>
 
-          <!-- 站点详情卡片 -->
-          <div class="point-detail-section">
-            <div class="point-detail-panel">
-              <div class="point-detail-header">
-                <h4 class="point-detail-title">站点详情</h4>
-              </div>
+        </div>
 
-              <div class="point-detail-content">
-                <!-- 没有数据时显示暂无数据 -->
-                <div v-if="!selectedPoint" class="no-data-message">
-                  暂无数据
+        <!-- 地图和统计区域 -->
+        <div class="map-stats-section">
+          <!-- 地图区域 -->
+          <div class="map-section">
+            <MapViewer ref="mapViewer" :coordinates="currentCoordinates" :shp-coordinates="shpCoordinates"
+              :shp-data="shpJsonData" :map-stats="mapStats" @map-ready="handleMapReady"
+              @point-clicked="handlePointClicked" />
+
+            <!-- 悬浮播放卡片 -->
+            <div class="floating-player-card">
+              <div class="player-content">
+                <!-- 时间信息 -->
+                <div class="time-info">
+                  <div class="time-label">时间节点</div>
+                  <div class="current-time-display">{{ currentTimeDisplay }}</div>
                 </div>
 
-                <!-- 有数据时显示详细信息 -->
-                <template v-else>
-                  <!-- 站点名称单独显示在顶部 -->
-                  <div class="station-name-display">
-                    <div class="warning-color-box" :class="getWarningLevelClass(selectedPoint.currentValue)"></div>
-                    <div class="station-name-text">{{ selectedPoint.name || '未知站点' }}</div>
+                <!-- 播放控制按钮 -->
+                <div class="player-controls-right">
+                  <button class="player-btn prev-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
+                    </svg>
+                  </button>
+                  <button class="player-btn play-pause-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                  </button>
+                  <button class="player-btn next-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <!-- 可拖动进度条 -->
+              <div class="progress-slider">
+                <n-slider
+                  v-model:value="currentTimeIndex"
+                  :min="0"
+                  :max="Math.max(0, (timeColumns.length || 1) - 1)"
+                  :step="1"
+                  :marks="timeColumnsMarks"
+                  :tooltip="false"
+                  @update:value="handleSliderChange"
+                />
+                <div class="slider-labels">
+                  <span class="slider-start">{{ timeColumns[0] || '00:00' }}</span>
+                  <span class="slider-end">{{ timeColumns[timeColumns.length - 1] || '24:00' }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 实时统计区域 -->
+          <div class="stats-section">
+            <div class="stats-panel">
+              <div class="stats-header">
+                <h4 class="stats-title">实时统计</h4>
+                <div class="stats-status" :class="mapStats ? mapStats.status : 'ready'">
+                  <div class="status-dot"></div>
+                  <span>{{ mapStats ? (mapStats.status === 'loading' ? '加载中' : mapStats.status === 'updated' ? '已更新' :
+                    mapStats.status === 'error' ? '错误' : '就绪') : '就绪' }}</span>
+                </div>
+              </div>
+
+              <div class="warning-stats-grid">
+                <div class="warning-stat-box">
+                  <div class="stat-number">{{ uploadedCsvData.length || 0 }}</div>
+                  <div class="stat-desc">数据点总数</div>
+                </div>
+
+                <div class="warning-stat-box black-warning">
+                  <div class="stat-number">{{ mapStats?.warningCounts?.black || 0 }}</div>
+                  <div class="stat-desc">黑色预警</div>
+                </div>
+
+                <div class="warning-stat-box red-warning">
+                  <div class="stat-number">{{ mapStats?.warningCounts?.red || 0 }}</div>
+                  <div class="stat-desc">红色预警</div>
+                </div>
+
+                <div class="warning-stat-box orange-warning">
+                  <div class="stat-number">{{ mapStats?.warningCounts?.orange || 0 }}</div>
+                  <div class="stat-desc">橙色预警</div>
+                </div>
+
+                <div class="warning-stat-box yellow-warning">
+                  <div class="stat-number">{{ mapStats?.warningCounts?.yellow || 0 }}</div>
+                  <div class="stat-desc">黄色预警</div>
+                </div>
+
+                <div class="warning-stat-box blue-warning">
+                  <div class="stat-number">{{ mapStats?.warningCounts?.blue || 0 }}</div>
+                  <div class="stat-desc">蓝色预警</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 站点详情卡片 -->
+            <div class="point-detail-section">
+              <div class="point-detail-panel">
+                <div class="point-detail-header">
+                  <h4 class="point-detail-title">站点详情</h4>
+                </div>
+
+                <div class="point-detail-content">
+                  <!-- 没有数据时显示暂无数据 -->
+                  <div v-if="!selectedPoint" class="no-data-message">
+                    暂无数据
                   </div>
 
-                  <div class="detail-grid">
-                    <!-- 当前水位 -->
-                    <div class="detail-item current-water">
-                      <div class="detail-label">当前水位</div>
-                      <div class="detail-value">
-                        {{ selectedPoint.currentValue !== null ? selectedPoint.currentValue.toFixed(2) + 'm' : '暂无数据' }}
-                      </div>
+                  <!-- 有数据时显示详细信息 -->
+                  <template v-else>
+                    <!-- 站点名称单独显示在顶部 -->
+                    <div class="station-name-display">
+                      <div class="warning-color-box" :class="getWarningLevelClass(selectedPoint.currentValue)"></div>
+                      <div class="station-name-text">{{ selectedPoint.name || '未知站点' }}</div>
                     </div>
 
-                    <!-- 预警级别 -->
-                    <div class="detail-item warning-level-item" v-if="selectedPoint.currentValue !== null">
-                      <div class="detail-label">预警级别</div>
-                      <div class="warning-level-display" :class="getWarningLevelClass(selectedPoint.currentValue)">
-                        {{ getWarningLevelText(selectedPoint.currentValue) }}
+                    <div class="detail-grid">
+                      <!-- 当前水位 -->
+                      <div class="detail-item current-water">
+                        <div class="detail-label">当前水位</div>
+                        <div class="detail-value">
+                          {{ selectedPoint.currentValue !== null ? selectedPoint.currentValue.toFixed(2) + 'm' : '暂无数据'
+                          }}
+                        </div>
+                      </div>
+
+                      <!-- 预警级别 -->
+                      <div class="detail-item warning-level-item" v-if="selectedPoint.currentValue !== null">
+                        <div class="detail-label">预警级别</div>
+                        <div class="warning-level-display" :class="getWarningLevelClass(selectedPoint.currentValue)">
+                          {{ getWarningLevelText(selectedPoint.currentValue) }}
+                        </div>
+                      </div>
+
+                      <!-- 峰值水位 -->
+                      <div class="detail-item peak-water" v-if="selectedPoint.peakValue !== null">
+                        <div class="detail-label">峰值水位</div>
+                        <div class="detail-value">
+                          {{ selectedPoint.peakValue.toFixed(2) + 'm' }}
+                        </div>
+                      </div>
+
+                      <!-- 峰值时间 -->
+                      <div class="detail-item peak-time" v-if="selectedPoint.peakTime">
+                        <div class="detail-label">峰值时间</div>
+                        <div class="detail-value">{{ selectedPoint.peakTime }}</div>
                       </div>
                     </div>
-
-                    <!-- 峰值水位 -->
-                    <div class="detail-item peak-water" v-if="selectedPoint.peakValue !== null">
-                      <div class="detail-label">峰值水位</div>
-                      <div class="detail-value">
-                        {{ selectedPoint.peakValue.toFixed(2) + 'm' }}
-                      </div>
-                    </div>
-
-                    <!-- 峰值时间 -->
-                    <div class="detail-item peak-time" v-if="selectedPoint.peakTime">
-                      <div class="detail-label">峰值时间</div>
-                      <div class="detail-value">{{ selectedPoint.peakTime }}</div>
-                    </div>
-                  </div>
-                </template>
+                  </template>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- 状态消息组件 -->
-    <StatusMessage v-model:error="errorMessage" v-model:success="successMessage" v-model:warning="warningMessage"
-      v-model:info="infoMessage" :auto-close="true" :duration="5000" />
-  </div>
+      <!-- 状态消息组件 -->
+      <StatusMessage v-model:error="errorMessage" v-model:success="successMessage" v-model:warning="warningMessage"
+        v-model:info="infoMessage" :auto-close="true" :duration="5000" />
+    </div>
+  </n-config-provider>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { zhCN, dateZhCN } from 'naive-ui'
+import { ref, onMounted, computed } from 'vue'
 import { CSVParser } from './utils/csvParser.js'
 import AppHeader from './components/AppHeader.vue'
 import CsvUploader from './components/CsvUploader.vue'
 import MapViewer from './components/MapViewer.vue'
 import StatusMessage from './components/StatusMessage.vue'
+import { NSlider } from 'naive-ui'
 
 // 响应式变量
 const mapViewer = ref(null)
@@ -201,6 +248,8 @@ const shpCoordinates = ref([])
 const uploadedCsvData = ref([]) // 存储上传的CSV数据
 const timeColumns = ref([]) // 存储时间列名称
 const selectedPoint = ref(null) // 当前选中的站点信息
+const currentTimeIndex = ref(0) // 当前时间节点索引（默认为第一个时间节点）
+const isPlaying = ref(false) // 播放状态
 
 // 消息状态
 const errorMessage = ref('')
@@ -257,14 +306,17 @@ const handleFileSelected = async (file) => {
       // 将第一列时间数据匹配到SHP数据
       await matchCsvDataToShp(csvData, headers[2]) // 使用第一个时间列
 
-      // 更新统计信息
+      // 更新综合统计信息
+      updateCombinedStats()
+
+      // 更新处理信息
       const processTime = Date.now() - processingStartTime
       mapStats.value = {
+        ...mapStats.value, // 保留updateCombinedStats中的统计数据
         fileName: file.name,
         dataRowCount: csvData.length,
         timeColumnCount: timeColumns.value.length,
         matchedPoints: shpJsonData.value.filter(item => item.value !== null).length,
-        status: 'updated',
         processTime: processTime,
         lastUpdate: new Date().toISOString()
       }
@@ -413,6 +465,66 @@ const getWarningLevelText = (value) => {
 const handleMapReady = () => {
   console.log('地图已准备就绪')
   infoMessage.value = '地图加载完成，可以上传CSV文件'
+}
+
+// 计算时间列标记
+const timeColumnsMarks = computed(() => {
+  const marks = {}
+  if (timeColumns.value.length > 0) {
+    // 在关键位置添加标记
+    const step = Math.max(1, Math.floor(timeColumns.value.length / 10))
+    timeColumns.value.forEach((time, index) => {
+      if (index === 0 || index === timeColumns.value.length - 1 || index % step === 0) {
+        marks[index] = time
+      }
+    })
+  }
+  return marks
+})
+
+// 计算当前时间显示
+const currentTimeDisplay = computed(() => {
+  if (timeColumns.value.length > 0) {
+    return timeColumns.value[currentTimeIndex.value] || '00:00'
+  }
+  return '00:00'
+})
+
+// 处理滑动条变化
+const handleSliderChange = (value) => {
+  currentTimeIndex.value = value
+  // 更新当前时间节点的统计数据
+  updateCombinedStats()
+  // 更新SHP数据为当前时间节点的值
+  updateShpDataForCurrentTime()
+}
+
+// 更新SHP数据为当前时间节点的值
+const updateShpDataForCurrentTime = () => {
+  if (uploadedCsvData.value.length === 0 || timeColumns.value.length === 0) {
+    return
+  }
+
+  const currentTimeColumn = timeColumns.value[currentTimeIndex.value]
+
+  // 创建CEM_No到CSV数据的映射
+  const csvMap = new Map()
+  uploadedCsvData.value.forEach(row => {
+    if (row.CEM_No) {
+      csvMap.set(row.CEM_No, row[currentTimeColumn])
+    }
+  })
+
+  // 更新SHP数据的value字段
+  shpJsonData.value.forEach(shpItem => {
+    if (shpItem.CEM_No && csvMap.has(shpItem.CEM_No)) {
+      const value = csvMap.get(shpItem.CEM_No)
+      const numValue = parseFloat(value)
+      shpItem.value = isNaN(numValue) ? null : numValue
+    } else {
+      shpItem.value = null
+    }
+  })
 }
 
 // 处理圆点点击事件
@@ -577,13 +689,13 @@ const parseShpCsvToJson = (csvText) => {
   return jsonData
 }
 
-// 更新综合统计信息
-const updateCombinedStats = () => {
+// 更新当前时间节点的预警统计信息
+const updateWarningStatsForCurrentTime = () => {
   const kmlCount = currentCoordinates.value.length
   const shpCount = shpCoordinates.value.length
-  const totalCount = kmlCount + shpCount
+  const csvCount = uploadedCsvData.value.length
 
-  // 计算各预警级别数量
+  // 计算各预警级别数量（基于当前时间节点）
   const warningCounts = {
     black: 0,    // 5级 - 2.5m以上
     red: 0,      // 4级 - 1.5-2.5m
@@ -593,34 +705,70 @@ const updateCombinedStats = () => {
   }
 
   let valueCount = 0
-  shpJsonData.value.forEach(item => {
-    if (item.value !== null && item.value !== undefined) {
-      valueCount++
-      const value = parseFloat(item.value)
-      if (value >= 2.5) {
-        warningCounts.black++
-      } else if (value >= 1.5) {
-        warningCounts.red++
-      } else if (value >= 1.0) {
-        warningCounts.orange++
-      } else if (value >= 0.5) {
-        warningCounts.yellow++
-      } else {
-        warningCounts.blue++
+
+  // 如果有时间数据，基于当前时间节点计算预警级别
+  if (uploadedCsvData.value.length > 0 && timeColumns.value.length > 0) {
+    const currentTimeColumn = timeColumns.value[currentTimeIndex.value] || timeColumns.value[0]
+
+    uploadedCsvData.value.forEach(row => {
+      if (row[currentTimeColumn] && row[currentTimeColumn].trim() !== '') {
+        const value = parseFloat(row[currentTimeColumn])
+        if (!isNaN(value)) {
+          valueCount++
+          if (value >= 2.5) {
+            warningCounts.black++
+          } else if (value >= 1.5) {
+            warningCounts.red++
+          } else if (value >= 1.0) {
+            warningCounts.orange++
+          } else if (value >= 0.5) {
+            warningCounts.yellow++
+          } else {
+            warningCounts.blue++
+          }
+        }
       }
-    }
+    })
+  }
+
+  // 调试信息
+  console.log('当前时间节点预警统计:', {
+    currentTimeIndex: currentTimeIndex.value,
+    currentTimeColumn: timeColumns.value[currentTimeIndex.value],
+    warningCounts: warningCounts,
+    valueCount: valueCount
   })
 
+  return {
+    warningCounts: warningCounts,
+    valueCount: valueCount
+  }
+}
+
+// 更新综合统计信息
+const updateCombinedStats = () => {
+  const kmlCount = currentCoordinates.value.length
+  const shpCount = shpCoordinates.value.length
+  const csvCount = uploadedCsvData.value.length
+  const totalCount = kmlCount + shpCount
+
+  // 获取当前时间节点的预警统计
+  const currentWarningStats = updateWarningStatsForCurrentTime()
+  // debugger
   mapStats.value = {
+    ...mapStats.value, // 保留其他已有属性
     kmlPointCount: kmlCount,
     shpPointCount: shpCount,
     totalPointCount: totalCount,
-    dataPointCount: valueCount, // 有数据的点数
-    warningCounts: warningCounts,
+    csvDataCount: csvCount,
+    dataPointCount: currentWarningStats.valueCount, // 当前时间节点有数据的点数
+    warningCounts: currentWarningStats.warningCounts,
     status: 'updated',
     lastUpdate: new Date().toISOString(),
-    ...mapStats.value // 保留其他已有属性
+    currentTimeIndex: currentTimeIndex.value,
+
   }
+  console.log(mapStats.value)
 }
 </script>
 
@@ -741,6 +889,136 @@ const updateCombinedStats = () => {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   overflow: hidden;
   min-height: 600px;
+  position: relative;
+}
+
+/* 悬浮播放卡片样式 */
+.floating-player-card {
+  position: absolute;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+  padding: 0.75rem 2rem;
+  z-index: 1000;
+  min-width: 500px;
+  width: auto;
+}
+
+.player-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.time-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.time-label {
+  font-size: 0.75rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.current-time-display {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.player-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.player-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: #f3f4f6;
+  border-radius: 8px;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.player-btn.prev-btn,
+.player-btn.next-btn,
+.player-btn.play-pause-btn {
+  width: 38px;
+  height: 38px;
+}
+
+.player-btn:hover {
+  background: #e5e7eb;
+  color: #374151;
+  transform: translateY(-1px);
+}
+
+.player-btn:active {
+  transform: translateY(0);
+}
+
+.play-pause-btn:hover {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.prev-btn:hover,
+.next-btn:hover {
+  background: #ede9fe;
+  color: #7c3aed;
+}
+
+/* 进度条样式 */
+.progress-slider {
+  width: 100%;
+  padding: 0.25rem 0;
+}
+
+.slider-labels {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  color: #6b7280;
+  font-weight: 500;
+  margin-top: 0.25rem;
+}
+
+/* 覆盖n-slider样式以适应深色主题 */
+.floating-player-card :deep(.n-slider) {
+  --n-rail-color: #e5e7eb;
+  --n-handle-color: #3b82f6;
+  --n-fill-color: #3b82f6;
+}
+
+.floating-player-card :deep(.n-slider-rail) {
+  height: 4px;
+  border-radius: 2px;
+}
+
+.floating-player-card :deep(.n-slider-handle) {
+  width: 14px;
+  height: 14px;
+  border: 3px solid #3b82f6;
+  background: white;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.floating-player-card :deep(.n-slider-handle:hover) {
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
 }
 
 .stats-section {
@@ -749,6 +1027,7 @@ const updateCombinedStats = () => {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  height: 100%;
 }
 
 .stats-panel {
@@ -756,9 +1035,7 @@ const updateCombinedStats = () => {
   border-radius: 12px;
   padding: 1rem;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  height: 100%;
-  max-height: 400px;
-  overflow-y: auto;
+  height: 350px;
   display: flex;
   flex-direction: column;
 }
@@ -846,7 +1123,7 @@ const updateCombinedStats = () => {
   grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
   flex: 1;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .warning-stat-box {
@@ -935,8 +1212,10 @@ const updateCombinedStats = () => {
 /* 站点详情卡片样式 */
 .point-detail-section {
   width: 100%;
-  flex-shrink: 0;
-  margin-top: 1rem;
+  flex: 1;
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
 }
 
 .point-detail-panel {
@@ -944,6 +1223,9 @@ const updateCombinedStats = () => {
   border-radius: 12px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   overflow: hidden;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .point-detail-header {
@@ -974,10 +1256,11 @@ const updateCombinedStats = () => {
 }
 
 .point-detail-content {
-  padding: 1rem;
+  padding: 0.75rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
+  flex: 1;
 }
 
 .no-data-message {
@@ -1009,7 +1292,8 @@ const updateCombinedStats = () => {
   height: 20px;
   border-radius: 4px;
   flex-shrink: 0;
-  background: #9ca3af; /* 默认灰色 */
+  background: #9ca3af;
+  /* 默认灰色 */
 }
 
 .warning-color-box.black-warning {
@@ -1042,7 +1326,7 @@ const updateCombinedStats = () => {
 .detail-grid {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.5rem;
 }
 
 .detail-item {
@@ -1051,7 +1335,7 @@ const updateCombinedStats = () => {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.75rem;
+  padding: 0.5rem 0.75rem;
   background: #f9fafb;
   border-radius: 8px;
   transition: all 0.2s ease;
