@@ -63,6 +63,14 @@ const props = defineProps({
   mapStats: {
     type: Object,
     default: null
+  },
+  currentTimeIndex: {
+    type: Number,
+    default: 0
+  },
+  timeColumns: {
+    type: Array,
+    default: () => []
   }
 })
 
@@ -78,6 +86,7 @@ const hasPath = ref(false)
 let map = null
 let irregularPolygon = null
 let shpCircleMarkers = []
+let infoWindow = null // 信息气泡实例
 
 // 初始化地图
 const initMap = async () => {
@@ -158,8 +167,134 @@ const getColorByValue = (value) => {
   return '#2563eb' // 蓝色预警 (1级) - 0.5m以下
 }
 
+// 根据value字段的值获取预警级别信息
+const getWarningLevelInfo = (value) => {
+  if (value === null || value === undefined) {
+    return {
+      level: '无数据',
+      color: '#9ca3af',
+      description: '暂无监测数据'
+    }
+  }
+
+  const numValue = parseFloat(value)
+  if (numValue >= 2.5) {
+    return {
+      level: '5级',
+      color: '#1f2937',
+      description: '黑色预警（≥2.5m）'
+    }
+  }
+  if (numValue >= 1.5) {
+    return {
+      level: '4级',
+      color: '#dc2626',
+      description: '红色预警（1.5-2.5m）'
+    }
+  }
+  if (numValue >= 1.0) {
+    return {
+      level: '3级',
+      color: '#ea580c',
+      description: '橙色预警（1.0-1.5m）'
+    }
+  }
+  if (numValue >= 0.5) {
+    return {
+      level: '2级',
+      color: '#ca8a04',
+      description: '黄色预警（0.5-1.0m）'
+    }
+  }
+  return {
+    level: '1级',
+    color: '#2563eb',
+    description: '蓝色预警（<0.5m）'
+  }
+}
+
+// 创建信息气泡内容
+const createInfoWindowContent = (pointData, warningInfo) => {
+  const stationName = pointData?.Name || `监测点 ${pointData?.CEM_No || '未知'}`
+  const waterLevel = pointData?.value !== null && pointData?.value !== undefined
+    ? `${parseFloat(pointData.value).toFixed(2)}m`
+    : '无数据'
+
+  // 获取当前时间节点
+  const currentTime = props.timeColumns && props.timeColumns.length > 0 && props.currentTimeIndex < props.timeColumns.length
+    ? props.timeColumns[props.currentTimeIndex]
+    : '未知时间'
+
+  return `
+    <div style="padding: 12px; min-width: 220px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+      <div style="display: flex; align-items: center; margin-bottom: 8px;">
+        <div style="width: 12px; height: 12px; border-radius: 2px; background: ${warningInfo.color}; margin-right: 8px; flex-shrink: 0;"></div>
+        <div style="font-weight: 600; font-size: 14px; color: #1f2937;">${stationName}</div>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+        <span style="font-size: 12px; color: #6b7280;">时间节点:</span>
+        <span style="font-weight: 600; font-size: 12px; color: #3b82f6; background: rgba(59, 130, 246, 0.1); padding: 1px 4px; border-radius: 2px;">
+          ${currentTime}
+        </span>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+        <span style="font-size: 12px; color: #6b7280;">当前水位:</span>
+        <span style="font-weight: 600; font-size: 13px; color: #1f2937;">${waterLevel}</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+        <span style="font-size: 12px; color: #6b7280;">预警级别:</span>
+        <span style="font-weight: 600; font-size: 12px; color: ${warningInfo.color}; background: ${warningInfo.color}20; padding: 2px 6px; border-radius: 3px;">
+          ${warningInfo.level}
+        </span>
+      </div>
+      <div style="font-size: 11px; color: #6b7280; margin-top: 8px; padding-top: 6px; border-top: 1px solid #e5e7eb;">
+        ${warningInfo.description}
+      </div>
+      ${pointData?.CEM_No ? `<div style="font-size: 11px; color: #9ca3af; margin-top: 4px;">设备编号: ${pointData.CEM_No}</div>` : ''}
+    </div>
+  `
+}
+
+// 显示信息气泡
+const showInfoWindow = (coordinates, pointData) => {
+  if (!map || !coordinates) return
+
+  // 获取预警信息
+  const warningInfo = getWarningLevelInfo(pointData?.value)
+
+  // 创建信息气泡内容
+  const content = createInfoWindowContent(pointData, warningInfo)
+
+  // 如果已有信息气泡，先关闭
+  if (infoWindow) {
+    infoWindow.close()
+  }
+
+  // 创建新的信息气泡
+  infoWindow = new AMap.InfoWindow({
+    content: content,
+    offset: new AMap.Pixel(0, -35), // 向上偏移，避免遮挡圆点
+    closeWhenClickMap: true, // 点击地图时关闭
+    anchor: 'bottom-center' // 气泡锚点在底部中心
+  })
+
+  // 打开信息气泡
+  infoWindow.open(map, coordinates)
+}
+
+// 关闭信息气泡
+const closeInfoWindow = () => {
+  if (infoWindow) {
+    infoWindow.close()
+    infoWindow = null
+  }
+}
+
 // 处理圆点点击事件
 const handlePointClick = (pointData, coordinates, index) => {
+  // 显示信息气泡
+  showInfoWindow(coordinates, pointData)
+
   // 发射点击事件到父组件，传递点数据、坐标和索引
   emit('point-clicked', {
     data: pointData,
@@ -335,6 +470,9 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('fullscreenchange', handleFullscreenChange)
 
+  // 关闭信息气泡
+  closeInfoWindow()
+
   // 清理地图实例
   if (map) {
     map.destroy()
@@ -349,6 +487,7 @@ defineExpose({
   updateMapPath,
   resetView,
   toggleFullscreen,
+  closeInfoWindow,
   map: () => map
 })
 </script>

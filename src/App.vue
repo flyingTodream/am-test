@@ -62,7 +62,8 @@
           <!-- 地图区域 -->
           <div class="map-section">
             <MapViewer ref="mapViewer" :coordinates="currentCoordinates" :shp-coordinates="shpCoordinates"
-              :shp-data="shpJsonData" :map-stats="mapStats" @map-ready="handleMapReady"
+              :shp-data="shpJsonData" :map-stats="mapStats" :current-time-index="currentTimeIndex"
+              :time-columns="timeColumns" @map-ready="handleMapReady"
               @point-clicked="handlePointClicked" />
 
             <!-- 悬浮播放卡片 -->
@@ -510,6 +511,11 @@ const isPlayerControlsDisabled = computed(() => {
 
 // 处理上一个按钮点击
 const handlePrevClick = () => {
+  // 关闭信息气泡
+  if (mapViewer.value && mapViewer.value.closeInfoWindow) {
+    mapViewer.value.closeInfoWindow()
+  }
+
   if (currentTimeIndex.value > 0) {
     currentTimeIndex.value--
     // 更新当前时间节点的统计数据
@@ -521,6 +527,11 @@ const handlePrevClick = () => {
 
 // 处理下一个按钮点击
 const handleNextClick = () => {
+  // 关闭信息气泡
+  if (mapViewer.value && mapViewer.value.closeInfoWindow) {
+    mapViewer.value.closeInfoWindow()
+  }
+
   if (currentTimeIndex.value < timeColumns.value.length - 1) {
     currentTimeIndex.value++
     // 更新当前时间节点的统计数据
@@ -532,6 +543,11 @@ const handleNextClick = () => {
 
 // 处理滑动条变化
 const handleSliderChange = (value) => {
+  // 关闭信息气泡
+  if (mapViewer.value && mapViewer.value.closeInfoWindow) {
+    mapViewer.value.closeInfoWindow()
+  }
+
   currentTimeIndex.value = value
   // 更新当前时间节点的统计数据
   updateCombinedStats()
@@ -541,6 +557,11 @@ const handleSliderChange = (value) => {
 
 // 处理播放/暂停按钮点击
 const handlePlayPauseClick = () => {
+  // 关闭信息气泡
+  if (mapViewer.value && mapViewer.value.closeInfoWindow) {
+    mapViewer.value.closeInfoWindow()
+  }
+
   if (isPlaying.value) {
     // 暂停播放
     stopPlayback()
