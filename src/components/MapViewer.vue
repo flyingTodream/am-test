@@ -176,29 +176,39 @@ const updateShpCircles = (coordinates) => {
   }
 
   try {
-    // 清除之前的圆点
-    shpCircleMarkers.forEach(circle => {
-      map.remove(circle)
-    })
-    shpCircleMarkers = []
+    // 如果没有坐标或数据，清除现有圆点
+    if (!coordinates || coordinates.length === 0 || props.shpData.length === 0) {
+      // 清除之前的圆点
+      shpCircleMarkers.forEach(circle => {
+        map.remove(circle)
+      })
+      shpCircleMarkers = []
+      return
+    }
 
-    // 添加新的圆点
-    if (coordinates && coordinates.length > 0 && props.shpData.length > 0) {
+    // 检查是否需要重新创建所有圆点（圆点数量发生变化）
+    if (shpCircleMarkers.length !== coordinates.length) {
+      // 清除之前的圆点
+      shpCircleMarkers.forEach(circle => {
+        map.remove(circle)
+      })
+      shpCircleMarkers = []
+
+      // 重新创建所有圆点
       coordinates.forEach(([lng, lat], index) => {
-        // 获取对应索引的SHP数据
         const shpItem = props.shpData[index]
-        const color = shpItem ? getColorByValue(shpItem.value) : '#FF6B35' // 默认颜色
+        const color = shpItem ? getColorByValue(shpItem.value) : '#FF6B35'
 
         const circle = new AMap.Circle({
           center: [lng, lat],
           radius: 30,
           strokeColor: color,
-          strokeWeight: 0, // 移除边框
+          strokeWeight: 0,
           strokeOpacity: 0,
-          fillColor: color, // 使用根据value值计算的颜色
-          fillOpacity: 1.0, // 完全不透明，实心效果
+          fillColor: color,
+          fillOpacity: 1.0,
           strokeStyle: 'solid',
-          cursor: 'pointer' // 设置鼠标样式为小手
+          cursor: 'pointer'
         })
 
         // 添加点击事件监听器
@@ -209,7 +219,27 @@ const updateShpCircles = (coordinates) => {
         map.add(circle)
         shpCircleMarkers.push(circle)
       })
+    } else {
+      // 圆点数量相同，只更新颜色变化的圆点
+      coordinates.forEach(([lng, lat], index) => {
+        const shpItem = props.shpData[index]
+        const newColor = shpItem ? getColorByValue(shpItem.value) : '#FF6B35'
 
+        // 获取当前圆点
+        const existingCircle = shpCircleMarkers[index]
+        if (existingCircle) {
+          // 获取当前颜色
+          const currentColor = existingCircle.getOptions().fillColor
+
+          // 如果颜色发生变化，更新颜色
+          if (currentColor !== newColor) {
+            existingCircle.setOptions({
+              fillColor: newColor,
+              strokeColor: newColor
+            })
+          }
+        }
+      })
     }
   } catch (error) {
     console.error('更新SHP圆点失败:', error)
