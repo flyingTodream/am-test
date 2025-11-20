@@ -76,17 +76,21 @@
 
                 <!-- 播放控制按钮 -->
                 <div class="player-controls-right">
-                  <button class="player-btn prev-btn">
+                  <button class="player-btn prev-btn" :disabled="isPrevDisabled" @click="handlePrevClick">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
                     </svg>
                   </button>
-                  <button class="player-btn play-pause-btn">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <button class="player-btn play-pause-btn" :disabled="isPlayerControlsDisabled"
+                    @click="handlePlayPauseClick">
+                    <svg v-if="!isPlaying" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M8 5v14l11-7z" />
                     </svg>
+                    <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+                    </svg>
                   </button>
-                  <button class="player-btn next-btn">
+                  <button class="player-btn next-btn" :disabled="isNextDisabled" @click="handleNextClick">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
                     </svg>
@@ -96,19 +100,12 @@
 
               <!-- 可拖动进度条 -->
               <div class="progress-slider">
-                <n-slider
-                  v-model:value="currentTimeIndex"
-                  :min="0"
-                  :max="Math.max(0, (timeColumns.length || 1) - 1)"
-                  :step="1"
-                  :marks="timeColumnsMarks"
-                  :tooltip="false"
-                  @update:value="handleSliderChange"
-                />
-                <div class="slider-labels">
-                  <span class="slider-start">{{ timeColumns[0] || '00:00' }}</span>
-                  <span class="slider-end">{{ timeColumns[timeColumns.length - 1] || '24:00' }}</span>
-                </div>
+                <n-slider v-model:value="currentTimeIndex" :min="0" :max="Math.max(0, timeColumns.length - 1)" :step="1"
+                  :marks="timeColumnsMarks" :tooltip="false" @update:value="handleSliderChange" />
+                <!-- <div class="slider-labels">
+                  <span class="slider-start">{{ timeColumns[0] || '未知' }}</span>
+                  <span class="slider-end">{{ timeColumns[timeColumns.length - 1] || '未知' }}</span>
+                </div> -->
               </div>
             </div>
           </div>
@@ -228,7 +225,7 @@
 
 <script setup>
 import { zhCN, dateZhCN } from 'naive-ui'
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { CSVParser } from './utils/csvParser.js'
 import AppHeader from './components/AppHeader.vue'
 import CsvUploader from './components/CsvUploader.vue'
@@ -250,6 +247,7 @@ const timeColumns = ref([]) // 存储时间列名称
 const selectedPoint = ref(null) // 当前选中的站点信息
 const currentTimeIndex = ref(0) // 当前时间节点索引（默认为第一个时间节点）
 const isPlaying = ref(false) // 播放状态
+const playTimer = ref(null) // 播放计时器
 
 // 消息状态
 const errorMessage = ref('')
@@ -485,10 +483,52 @@ const timeColumnsMarks = computed(() => {
 // 计算当前时间显示
 const currentTimeDisplay = computed(() => {
   if (timeColumns.value.length > 0) {
-    return timeColumns.value[currentTimeIndex.value] || '00:00'
+    return timeColumns.value[currentTimeIndex.value] || ''
   }
-  return '00:00'
+  return ''
 })
+
+// 计算上一个按钮是否禁用
+const isPrevDisabled = computed(() => {
+  return !hasCsvData.value || currentTimeIndex.value <= 0 || timeColumns.value.length <= 1
+})
+
+// 计算下一个按钮是否禁用
+const isNextDisabled = computed(() => {
+  return !hasCsvData.value || currentTimeIndex.value >= timeColumns.value.length - 1 || timeColumns.value.length <= 1
+})
+
+// 计算是否有CSV数据（用于禁用播放控制）
+const hasCsvData = computed(() => {
+  return uploadedCsvData.value.length > 0 && timeColumns.value.length > 0
+})
+
+// 计算播放控制按钮是否应该禁用
+const isPlayerControlsDisabled = computed(() => {
+  return !hasCsvData.value
+})
+
+// 处理上一个按钮点击
+const handlePrevClick = () => {
+  if (currentTimeIndex.value > 0) {
+    currentTimeIndex.value--
+    // 更新当前时间节点的统计数据
+    updateCombinedStats()
+    // 更新SHP数据为当前时间节点的值
+    updateShpDataForCurrentTime()
+  }
+}
+
+// 处理下一个按钮点击
+const handleNextClick = () => {
+  if (currentTimeIndex.value < timeColumns.value.length - 1) {
+    currentTimeIndex.value++
+    // 更新当前时间节点的统计数据
+    updateCombinedStats()
+    // 更新SHP数据为当前时间节点的值
+    updateShpDataForCurrentTime()
+  }
+}
 
 // 处理滑动条变化
 const handleSliderChange = (value) => {
@@ -497,6 +537,60 @@ const handleSliderChange = (value) => {
   updateCombinedStats()
   // 更新SHP数据为当前时间节点的值
   updateShpDataForCurrentTime()
+}
+
+// 处理播放/暂停按钮点击
+const handlePlayPauseClick = () => {
+  if (isPlaying.value) {
+    // 暂停播放
+    stopPlayback()
+  } else {
+    // 开始播放
+    startPlayback()
+  }
+}
+
+// 开始播放
+const startPlayback = () => {
+  if (!hasCsvData.value || timeColumns.value.length <= 1) {
+    return
+  }
+
+  isPlaying.value = true
+
+  // 每秒10个时间节点，即每100ms切换一次
+  playTimer.value = setInterval(() => {
+    // 检查是否到达最后一个时间节点
+    if (currentTimeIndex.value >= timeColumns.value.length - 1) {
+      // 到达末尾，停止播放并回到初始状态
+      stopPlayback(true) // 传递参数表示是播放完毕
+      return
+    }
+
+    // 移动到下一个时间节点
+    currentTimeIndex.value++
+
+    // 更新统计数据
+    updateCombinedStats()
+    updateShpDataForCurrentTime()
+  }, 100) // 100ms = 0.1秒，即每秒10个时间节点
+}
+
+// 停止播放
+const stopPlayback = (isPlaybackComplete = false) => {
+  if (playTimer.value) {
+    clearInterval(playTimer.value)
+    playTimer.value = null
+  }
+  isPlaying.value = false
+
+  // 如果是播放完毕，回到初始状态（第一个时间节点）
+  if (isPlaybackComplete) {
+    currentTimeIndex.value = 0
+    // 更新统计数据
+    updateCombinedStats()
+    updateShpDataForCurrentTime()
+  }
 }
 
 // 更新SHP数据为当前时间节点的值
@@ -589,6 +683,11 @@ onMounted(async () => {
   }
 
   checkAMapReady()
+})
+
+// 组件卸载时清理计时器
+onUnmounted(() => {
+  stopPlayback()
 })
 
 // 加载默认的文件
@@ -798,7 +897,7 @@ const updateCombinedStats = () => {
 }
 
 .sidebar {
-  width: 300px;
+  width: 260px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -895,7 +994,7 @@ const updateCombinedStats = () => {
 /* 悬浮播放卡片样式 */
 .floating-player-card {
   position: absolute;
-  bottom: 2rem;
+  bottom: 1rem;
   left: 50%;
   transform: translateX(-50%);
   background: white;
@@ -903,7 +1002,7 @@ const updateCombinedStats = () => {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
   border: 1px solid rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(10px);
-  padding: 0.75rem 2rem;
+  padding: 0.75rem 2rem 2.5rem 2rem;
   z-index: 1000;
   min-width: 500px;
   width: auto;
@@ -959,23 +1058,29 @@ const updateCombinedStats = () => {
   height: 38px;
 }
 
-.player-btn:hover {
+.player-btn:hover:not(:disabled) {
   background: #e5e7eb;
   color: #374151;
   transform: translateY(-1px);
 }
 
-.player-btn:active {
+.player-btn:active:not(:disabled) {
   transform: translateY(0);
 }
 
-.play-pause-btn:hover {
+.player-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.play-pause-btn:hover:not(:disabled) {
   background: #dcfce7;
   color: #16a34a;
 }
 
-.prev-btn:hover,
-.next-btn:hover {
+.prev-btn:hover:not(:disabled),
+.next-btn:hover:not(:disabled) {
   background: #ede9fe;
   color: #7c3aed;
 }

@@ -1,12 +1,9 @@
 <template>
   <div class="csv-uploader">
     <!-- 简单的上传按钮 -->
-    <button
-      class="upload-btn"
-      :disabled="isLoading"
-      @click="triggerFileUpload"
-    >
-      <svg v-if="!isLoading" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <button class="upload-btn" :disabled="isLoading" @click="triggerFileUpload">
+      <svg v-if="!isLoading" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="2">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
         <polyline points="17 8 12 3 7 8"></polyline>
         <line x1="12" y1="3" x2="12" y2="15"></line>
@@ -15,13 +12,7 @@
       <span>{{ isLoading ? '处理中...' : '上传CSV文件' }}</span>
     </button>
 
-    <input
-      ref="fileInput"
-      type="file"
-      class="file-input"
-      accept=".csv"
-      @change="handleFileSelect"
-    >
+    <input ref="fileInput" type="file" class="file-input" accept=".csv" @change="handleFileSelect">
 
     <!-- 文件信息 -->
     <div v-if="fileInfo" class="file-info">
@@ -30,7 +21,7 @@
         <div class="file-data">
           <div class="file-name">{{ fileInfo.name }}</div>
           <div class="file-meta">
-            {{ formatFileSize(fileInfo.size) }} • {{ formatDate(fileInfo.lastModified) }}
+            {{ formatFileSize(fileInfo.size) }}
           </div>
         </div>
         <button class="btn-remove" @click="removeFile">
@@ -172,8 +163,13 @@ defineExpose({
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .file-input {
