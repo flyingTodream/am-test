@@ -63,8 +63,7 @@
           <div class="map-section">
             <MapViewer ref="mapViewer" :coordinates="currentCoordinates" :shp-coordinates="shpCoordinates"
               :shp-data="shpJsonData" :map-stats="mapStats" :current-time-index="currentTimeIndex"
-              :time-columns="timeColumns" @map-ready="handleMapReady"
-              @point-clicked="handlePointClicked" />
+              :time-columns="timeColumns" @map-ready="handleMapReady" @point-clicked="handlePointClicked" />
 
             <!-- 悬浮播放卡片 -->
             <div class="floating-player-card">
@@ -323,36 +322,7 @@ const handleFileSelected = async (file) => {
       successMessage.value = `监测数据文件处理成功！共${csvData.length}条记录，${timeColumns.value.length}个时间点，成功匹配${mapStats.value.matchedPoints}个检测点`
 
     } else {
-      // 原有的KML格式处理逻辑
-      await csvParser.parseCSVFile(file)
-
-      // 清除处理中消息
-      if (!file.name.includes('kml.csv')) {
-        infoMessage.value = ''
-      }
-
-      // 获取坐标数据
-      const coordinates = csvParser.getCoordinates()
-      currentCoordinates.value = coordinates
-
-      // 更新统计信息
-      const info = csvParser.getInfo()
-      const processTime = Date.now() - processingStartTime
-
-      mapStats.value = {
-        ...info,
-        status: 'updated',
-        processTime: processTime,
-        lastUpdate: new Date().toISOString(),
-        dataRange: calculateDataRange(currentCoordinates.value)
-      }
-
-      // 显示成功消息
-      if (!file.name.includes('kml.csv')) {
-        successMessage.value = `CSV文件解析成功！共提取${coordinates.length}个坐标点`
-      } else {
-        successMessage.value = `默认数据加载成功！共提取${coordinates.length}个坐标点`
-      }
+      throw new Error('文件格式不正确。CSV文件必须包含Name、CEM_No字段，以及至少一个时间数据列。请检查文件格式后重新上传。')
     }
 
   } catch (error) {
@@ -365,6 +335,39 @@ const handleFileSelected = async (file) => {
   }
 }
 
+// 处理KML格式文件
+const handleKmlFile = async (file, processingStartTime) => {
+  // 使用CSV解析器处理KML格式文件
+  await csvParser.parseCSVFile(file)
+
+  // 清除处理中消息
+  if (!file.name.includes('kml.csv')) {
+    infoMessage.value = ''
+  }
+
+  // 获取坐标数据
+  const coordinates = csvParser.getCoordinates()
+  currentCoordinates.value = coordinates
+
+  // 更新统计信息
+  const info = csvParser.getInfo()
+  const processTime = Date.now() - processingStartTime
+
+  mapStats.value = {
+    ...info,
+    status: 'updated',
+    processTime: processTime,
+    lastUpdate: new Date().toISOString(),
+    dataRange: calculateDataRange(currentCoordinates.value)
+  }
+
+  // 显示成功消息
+  if (!file.name.includes('kml.csv')) {
+    successMessage.value = `CSV文件解析成功！共提取${coordinates.length}个坐标点`
+  } else {
+    successMessage.value = `默认数据加载成功！共提取${coordinates.length}个坐标点`
+  }
+}
 
 // 将CSV数据与SHP数据按CEM_No匹配
 const matchCsvDataToShp = async (csvData, timeColumnName) => {
@@ -727,14 +730,13 @@ const loadDefaultFiles = async () => {
     let shpLoaded = false
     let totalPoints = 0
 
-    // 处理kml.csv文件
     if (kmlResponse.status === 'fulfilled' && kmlResponse.value.ok) {
       const csvText = await kmlResponse.value.text()
       const blob = new Blob([csvText], { type: 'text/csv' })
       const file = new File([blob], 'kml.csv', { type: 'text/csv' })
-
+      await handleKmlFile(file, Date.now)
       // 使用现有的文件处理逻辑
-      await handleFileSelected(file)
+      // await handleFileSelected(file)
       kmlLoaded = true
       totalPoints += currentCoordinates.value.length
       console.log('成功加载kml.csv文件')
