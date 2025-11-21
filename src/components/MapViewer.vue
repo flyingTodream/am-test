@@ -154,9 +154,9 @@ const updateMapPath = (coordinates) => {
 
 // 根据value字段的值获取对应颜色
 const getColorByValue = (value) => {
-  // 如果value为null或undefined，使用默认颜色FF6B35
+  // 如果value为null或undefined，使用白色
   if (value === null || value === undefined) {
-    return '#FF6B35' // 默认颜色
+    return '#ffffff' // 默认白色
   }
 
   const numValue = parseFloat(value)
@@ -164,7 +164,8 @@ const getColorByValue = (value) => {
   if (numValue >= 1.5) return '#dc2626' // 红色预警 (4级) - 1.5-2.5m
   if (numValue >= 1.0) return '#ea580c' // 橙色预警 (3级) - 1.0-1.5m
   if (numValue >= 0.5) return '#ca8a04' // 黄色预警 (2级) - 0.5-1.0m
-  return '#2563eb' // 蓝色预警 (1级) - 0.5m以下
+  if (numValue >= 0) return '#2563eb' // 蓝色预警 (1级) - 0-0.5m
+  return '#ffffff' // 无预警 (0级) - 0m以下
 }
 
 // 根据value字段的值获取预警级别信息
@@ -172,7 +173,7 @@ const getWarningLevelInfo = (value) => {
   if (value === null || value === undefined) {
     return {
       level: '无数据',
-      color: '#9ca3af',
+      color: '#ffffff',
       description: '暂无监测数据'
     }
   }
@@ -206,10 +207,17 @@ const getWarningLevelInfo = (value) => {
       description: '黄色预警（0.5-1.0m）'
     }
   }
+  if (numValue >= 0) {
+    return {
+      level: '1级',
+      color: '#2563eb',
+      description: '蓝色预警（0-0.5m）'
+    }
+  }
   return {
-    level: '1级',
-    color: '#2563eb',
-    description: '蓝色预警（<0.5m）'
+    level: '0级',
+    color: '#ffffff',
+    description: '无预警（<0m）'
   }
 }
 

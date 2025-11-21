@@ -49,7 +49,14 @@
                 <div class="legend-color" style="background: #2563eb;"></div>
                 <div class="legend-content">
                   <span class="legend-title">蓝色预警</span>
-                  <span class="legend-desc">（1级）- 0.5m以下</span>
+                  <span class="legend-desc">（1级）- 0-0.5m</span>
+                </div>
+              </div>
+              <div class="legend-item">
+                <div class="legend-color" style="background: #ffffff; border: 1px solid #e5e7eb;"></div>
+                <div class="legend-content">
+                  <span class="legend-title">无预警</span>
+                  <span class="legend-desc">（0级）- 0m以下</span>
                 </div>
               </div>
             </div>
@@ -823,7 +830,8 @@ const updateWarningStatsForCurrentTime = () => {
     red: 0,      // 4级 - 1.5-2.5m
     orange: 0,   // 3级 - 1.0-1.5m
     yellow: 0,   // 2级 - 0.5-1.0m
-    blue: 0      // 1级 - 0.5m以下
+    blue: 0,     // 1级 - 0-0.5m
+    white: 0     // 0级 - 0m以下（无预警）
   }
 
   let valueCount = 0
@@ -845,8 +853,10 @@ const updateWarningStatsForCurrentTime = () => {
             warningCounts.orange++
           } else if (value >= 0.5) {
             warningCounts.yellow++
-          } else {
+          } else if (value >= 0) {
             warningCounts.blue++
+          } else {
+            warningCounts.white++
           }
         }
       }
@@ -1323,6 +1333,17 @@ const updateCombinedStats = () => {
   color: white;
 }
 
+.warning-stat-box.white-warning {
+  background: #ffffff;
+  border-color: #e5e7eb;
+  border: 1px solid #e5e7eb;
+}
+
+.warning-stat-box.white-warning .stat-number,
+.warning-stat-box.white-warning .stat-desc {
+  color: #1f2937;
+}
+
 .stat-number {
   font-size: 1.25rem;
   font-weight: 700;
@@ -1442,6 +1463,11 @@ const updateCombinedStats = () => {
 
 .warning-color-box.blue-warning {
   background: #2563eb;
+}
+
+.warning-color-box.white-warning {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
 }
 
 .station-name-text {
