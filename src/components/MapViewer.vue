@@ -3,22 +3,23 @@
     <!-- 地图控制面板 -->
     <div class="map-controls">
       <div class="control-group">
-        <button class="control-btn" @click="resetView" :disabled="!hasPath">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
-            <path d="M3 3v5h5"></path>
-            <path d="M12 20v-7"></path>
-            <path d="M8 12l4-4"></path>
-          </svg>
-          重置视图
-        </button>
-
         <button class="control-btn" @click="toggleFullscreen" :disabled="!isMapReady">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3">
             </path>
           </svg>
           {{ isFullscreen ? '退出全屏' : '全屏' }}
+        </button>
+
+        <!-- 预警信息显示开关 -->
+        <button class="control-btn" @click="toggleWarningPoints" :class="{ 'active': showWarningPoints }">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" v-if="showWarningPoints">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+          </svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" v-else>
+            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+          </svg>
+          {{ showWarningPoints ? '隐藏预警' : '显示预警' }}
         </button>
       </div>
 
@@ -81,6 +82,7 @@ const isMapReady = ref(false)
 const isFullscreen = ref(false)
 const zoom = ref(14)
 const hasPath = ref(false)
+const showWarningPoints = ref(true) // 是否显示预警信息圆点
 
 // 地图实例
 let map = null
@@ -319,6 +321,16 @@ const updateShpCircles = (coordinates) => {
   }
 
   try {
+    // 如果预警信息开关关闭，清除现有圆点
+    if (!showWarningPoints.value) {
+      // 清除之前的圆点
+      shpCircleMarkers.forEach(circle => {
+        map.remove(circle)
+      })
+      shpCircleMarkers = []
+      return
+    }
+
     // 如果没有坐标或数据，清除现有圆点
     if (!coordinates || coordinates.length === 0 || props.shpData.length === 0) {
       // 清除之前的圆点
@@ -437,6 +449,15 @@ const toggleFullscreen = () => {
   }
 }
 
+// 切换预警信息显示
+const toggleWarningPoints = () => {
+  showWarningPoints.value = !showWarningPoints.value
+  // 更新圆点显示
+  if (props.shpCoordinates.length > 0) {
+    updateShpCircles(props.shpCoordinates)
+  }
+}
+
 
 // 监听坐标变化
 watch(() => props.coordinates, (newCoordinates) => {
@@ -549,6 +570,17 @@ defineExpose({
 .control-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.control-btn.active {
+  background: #dcfce7;
+  border-color: #16a34a;
+  color: #16a34a;
+}
+
+.control-btn.active:hover:not(:disabled) {
+  background: #bbf7d0;
+  border-color: #15803d;
 }
 
 .zoom-info {
